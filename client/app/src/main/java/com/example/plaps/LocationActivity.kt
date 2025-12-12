@@ -44,6 +44,7 @@ class LocationActivity : AppCompatActivity() {
     private lateinit var placeAdapter: PlaceAdapter
     private lateinit var fusedLocationClient: FusedLocationProviderClient
 
+    // 앱 첫 실행시 권한 여부, 허용되면 getCurrentLocation() 함수를 실행해 지도를 내 위치로 이동
     private val locationPermissionRequest = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -53,7 +54,7 @@ class LocationActivity : AppCompatActivity() {
             else -> Toast.makeText(this, "위치 권한이 필요합니다.", Toast.LENGTH_SHORT).show()
         }
     }
-
+    // 위치 서비스를 준비하는 초기 설정 단계
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityLocationBinding.inflate(layoutInflater)
@@ -61,7 +62,7 @@ class LocationActivity : AppCompatActivity() {
 
         initRecyclerView()
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-
+    // 카카오맵 시작
         binding.mapView.start(object : MapLifeCycleCallback() {
             override fun onMapDestroy() { Log.d("KakaoMap", "onMapDestroy") }
             override fun onMapError(error: Exception) { Log.e("KakaoMap", "onMapError: ", error) }
@@ -72,19 +73,27 @@ class LocationActivity : AppCompatActivity() {
                 checkLocationPermission()
             }
         })
-
+    // 상단의 검색 버튼을 누르면 searchByKeyword()를 호출해 검색을 시작
         binding.btnSearch.setOnClickListener {
             val keyword = binding.etSearchField.text.toString()
             searchByKeyword(keyword)
-        }
+            // 검색버튼을 누를경우 키보드가 자동으로 내려가서 불러온 검색목록을 가리지않도록
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(binding.etSearchField.windowToken, 0)
 
+
+        }
+    // 키보드 엔터를 누르면 searchByKeyword()를 호출해 검색을 시작
         binding.etSearchField.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                 searchByKeyword(binding.etSearchField.text.toString())
+                // 엔터키 버튼을 누를경우 키보드가 자동으로 내려가서 불러온 검색목록을 가리지않도록
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.hideSoftInputFromWindow(binding.etSearchField.windowToken, 0)
                 true
             } else false
         }
-
+    //fabMyLocation 버튼을 누르면 권한을 다시 체크하고 내 위치로 이동
         binding.fabMyLocation.setOnClickListener { checkLocationPermission() }
     }
 
@@ -98,10 +107,10 @@ class LocationActivity : AppCompatActivity() {
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.hideSoftInputFromWindow(binding.etSearchField.windowToken, 0)
 
-            // ▼▼▼ [여기만 추가됨] 선택된 장소 데이터를 Compose로 넘기고 종료 ▼▼▼
+            // 선택된 장소 데이터를 Compose로 넘기고 종료
             val intent = android.content.Intent()
 
-            // place.placeName은 "스타벅스 강남점" 같은 실제 장소 이름입니다.
+            // place.placeName은 "스타벅스 강남점" 같은 실제 장소 이름
             intent.putExtra("result_place_name", place.placeName)
 
             // 결과 설정 (OK 신호 + 데이터)
@@ -116,7 +125,7 @@ class LocationActivity : AppCompatActivity() {
             adapter = placeAdapter
         }
     }
-
+    // 검색 기능
     private fun searchByKeyword(keyword: String) {
         if (keyword.isBlank()) {
             Toast.makeText(this, "검색어를 입력해주세요.", Toast.LENGTH_SHORT).show()
@@ -135,14 +144,14 @@ class LocationActivity : AppCompatActivity() {
 
                             val labelManager = kakaoMap?.getLabelManager()
 
-                            // [수정 포인트] getLayer() 괄호 안에 이름("search_layer")을 꼭 넣어야 에러가 안 납니다!
+                            // getLayer() 괄호 안에 이름("search_layer")
                             var layer = labelManager?.getLayer("search_layer")
                             if (layer == null) {
                                 layer = labelManager?.addLayer(LabelLayerOptions.from("search_layer"))
                             }
                             layer?.removeAll()
 
-                            // [수정 포인트] 벡터 이미지를 비트맵으로 변환 (지도에 아이콘 나오게 하는 핵심)
+                            // 벡터 이미지를 비트맵으로 변환 (지도에 아이콘 나오게 하는 핵심)
                             val bitmap = vectorToBitmap(R.drawable.ic_marker)
 
                             if (bitmap != null) {
@@ -178,7 +187,7 @@ class LocationActivity : AppCompatActivity() {
             })
     }
 
-    // [추가] 벡터 이미지를 비트맵으로 변환해주는 함수 (이게 없으면 빨간줄 뜹니다)
+    // 벡터 이미지를 비트맵으로 변환해주는 함수
     private fun vectorToBitmap(drawableId: Int): Bitmap? {
         try {
             val drawable = ContextCompat.getDrawable(this, drawableId) ?: return null
@@ -213,7 +222,7 @@ class LocationActivity : AppCompatActivity() {
                         val position = LatLng.from(location.latitude, location.longitude)
                         kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(position, 17))
 
-                        // 내 위치 마커 찍기 (여기도 비트맵 변환 적용하면 더 좋습니다)
+                        // 내 위치 마커 찍기
                         val labelManager = kakaoMap?.getLabelManager()
                         var layer = labelManager?.getLayer("my_location")
                         if(layer == null) {

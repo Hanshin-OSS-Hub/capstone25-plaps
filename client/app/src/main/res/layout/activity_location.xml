@@ -30,14 +30,17 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
+        <!--actionsearch를 넣어 줄바꿈 역할이 아닌 검색 역할이 되도록 하고
+        text와 maxline을 넣어 입력이 1줄만 되도록 -->
         <EditText
             android:id="@+id/et_search_field"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:background="@android:color/transparent"
-            android:hint="장소, 주소, 버스 검색"
+            android:hint="장소, 주소 검색"
             android:inputType="text"
+            android:imeOptions="actionSearch"
             android:maxLines="1"
             android:textColor="#000000" />
 
