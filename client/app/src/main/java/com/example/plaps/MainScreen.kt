@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.plaps.data.Event
 
 enum class BottomNavItem(val title: String, val icon: ImageVector) {
     Home("메인", Icons.Default.Home),
