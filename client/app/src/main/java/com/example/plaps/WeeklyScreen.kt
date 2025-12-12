@@ -144,7 +144,7 @@ fun WeeklyCalendarHeader(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("PLAPS", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("PLAPS", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Text(selectedDate.format(monthFormatter), color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
             }
             // 일정 추가 버튼 (흰색 박스)
