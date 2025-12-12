@@ -4,7 +4,7 @@ import retrofit2.Call
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Query
-import com.example.plaps.navigation.domain.SearchResponse
+import com.example.plaps.domain.SearchResponse
 
 interface KakaoLocalApiService {
     // 키워드로 장소를 검색하는 API

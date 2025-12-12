@@ -1,6 +1,6 @@
 package com.example.plaps.api
 
-import com.example.plaps.api.service.TransCoordService
+import com.example.plaps.api.service.local.TransCoordService
 import com.example.plaps.api.service.local.KakaoLocalApiService
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory

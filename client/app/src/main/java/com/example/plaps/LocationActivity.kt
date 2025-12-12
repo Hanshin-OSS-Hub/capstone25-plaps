@@ -31,7 +31,7 @@ import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 
-import com.example.plaps.navigation.domain.SearchResponse
+import com.example.plaps.domain.SearchResponse
 import com.example.plaps.api.service.local.PlaceAdapter
 import com.example.plaps.databinding.ActivityLocationBinding
 import com.example.plaps.api.RetrofitClient

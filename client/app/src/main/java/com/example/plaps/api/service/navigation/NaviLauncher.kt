@@ -1,9 +1,10 @@
-package com.example.plaps
+package com.example.plaps.api.service.navigation
 
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
-import com.example.plaps.api.service.TransCoordRepository
+import com.example.plaps.NaviActivity
+import com.example.plaps.api.service.local.TransCoordRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

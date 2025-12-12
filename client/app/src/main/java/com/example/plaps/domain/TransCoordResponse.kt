@@ -1,4 +1,4 @@
-package com.example.plaps.navigation.domain
+package com.example.plaps.domain
 import com.google.gson.annotations.SerializedName
 
 data class TransCoordResponse(

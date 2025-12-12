@@ -1,7 +1,7 @@
-package com.example.plaps.api.service
+package com.example.plaps.api.service.local
 
 import com.example.plaps.api.RetrofitClient
-import com.example.plaps.navigation.domain.Document
+import com.example.plaps.domain.Document
 
 class TransCoordRepository{
     val restApiKey = "본인의_REST_API_키" // 카카오 디벨로퍼스에서 복사한 키

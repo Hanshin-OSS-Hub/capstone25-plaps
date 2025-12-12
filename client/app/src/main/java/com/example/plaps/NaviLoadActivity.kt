@@ -9,7 +9,7 @@ import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import com.kakaomobility.knsdk.KNLanguageType
 
-import com.example.plaps.api.service.TransCoordRepository
+import com.example.plaps.api.service.local.TransCoordRepository
 
 class NaviLoadActivity : AppCompatActivity(){
     private val coordinateRepository = TransCoordRepository()

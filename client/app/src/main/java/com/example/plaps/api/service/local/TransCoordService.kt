@@ -1,10 +1,10 @@
-package com.example.plaps.api.service
+package com.example.plaps.api.service.local
 
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Query
 
-import com.example.plaps.navigation.domain.TransCoordResponse
+import com.example.plaps.domain.TransCoordResponse
 
 interface TransCoordService {
     @GET("v2/local/geo/transcoord.json")

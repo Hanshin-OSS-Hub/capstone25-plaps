@@ -1,4 +1,4 @@
-package com.example.plaps.navigation.domain
+package com.example.plaps.domain
 
 data class Position(
     val x : Double,

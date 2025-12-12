@@ -5,7 +5,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.example.plaps.databinding.ItemPlaceBinding
 
-import com.example.plaps.navigation.domain.Place
+import com.example.plaps.domain.Place
 
 // 데이터(List<Place>)를 받아서 목록(RecyclerView)에 끼워주는 연결 장치(Adapter)
 // 리스트를 관리하고 클릭 이벤트를 처리하는 어댑터
