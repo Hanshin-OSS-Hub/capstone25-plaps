@@ -1,6 +1,11 @@
 package com.example.plaps
 
+import android.app.Activity
+import android.app.TimePickerDialog // 👈 TimePickerDialog를 위한 import
+import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,22 +28,17 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.plaps.data.Event // Event 클래스 import
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
-import android.app.Activity // [추가] 결과 코드(RESULT_OK) 확인용
-import android.content.Intent // [추가] Intent 사용용
-import androidx.activity.compose.rememberLauncherForActivityResult // [추가] Launcher
-import androidx.activity.result.contract.ActivityResultContracts // [추가] Contract
-import androidx.compose.ui.platform.LocalContext // [추가]
-import androidx.compose.material.icons.filled.Place // [추가] 또는 원하는 아이콘
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EventItem(event: Event, onClick: (Event) -> Unit) {
     val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
     val colors = listOf(Color(0xFF4A80F0), Color(0xFF4CAF50), Color(0xFFF44336), Color(0xFF9C27B0), Color(0xFFE91E63))
     val eventColor = colors.getOrElse(event.colorIndex) { colors[0] }
-    val context = LocalContext.current // [추가] 화면 이동용 Context
+    val context = LocalContext.current
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -47,16 +47,12 @@ fun EventItem(event: Event, onClick: (Event) -> Unit) {
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         onClick = { onClick(event) }
     ) {
-        Row(modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically // [추가] 수직 중앙 정렬
-            ) {
-            // 1. 왼쪽 색상 원 (기존 코드)
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            // 1. 왼쪽 색상 원
             Box(modifier = Modifier.padding(top = 4.dp).size(10.dp).clip(CircleShape).background(eventColor))
             Spacer(modifier = Modifier.width(12.dp))
 
-            // 2. 가운데 텍스트 영역 (수정됨!)
-            // [추가] modifier.weight(1f)를 추가해야 버튼이 오른쪽 끝으로 갑니다.
-            // Column {} 에서 Column(modifier = Modifier.weight(1f)) {}로 수정됨.
+            // 2. 가운데 텍스트 영역
             Column(modifier = Modifier.weight(1f)) {
                 Text(event.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
@@ -75,20 +71,19 @@ fun EventItem(event: Event, onClick: (Event) -> Unit) {
                 }
             }
 
-            // 3. 오른쪽 길찾기 버튼 (수정됨: 아이콘 -> 텍스트 버튼)
+            // 3. 오른쪽 길찾기 버튼 (위치 정보가 있을 때만 표시)
             if (event.location.isNotBlank()) {
                 Button(
                     onClick = {
+                        // TODO: [NaviLoadActivity]로 위도/경도 정보를 전달하는 로직 추가 필요
                         val intent = Intent(context, NaviLoadActivity::class.java)
                         context.startActivity(intent)
+                        Toast.makeText(context, "길찾기 기능 (NaviLoadActivity) 준비 중", Toast.LENGTH_SHORT).show()
                     },
-                    // 버튼 스타일링: 파란색 배경, 둥근 모서리, 내용물 패딩 조절
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A80F0)),
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    modifier = Modifier
-                        .height(36.dp) // 버튼 높이를 너무 크지 않게 조절
-                        .padding(start = 8.dp) // 텍스트와 간격 벌리기
+                    modifier = Modifier.height(36.dp).padding(start = 8.dp)
                 ) {
                     Text(
                         text = "길찾기",
@@ -127,21 +122,56 @@ fun AddOrEditEventSheet(
     var description by remember(existingEvent) { mutableStateOf(existingEvent?.notes ?: "") }
     var selectedColorIndex by remember(existingEvent) { mutableStateOf(existingEvent?.colorIndex ?: 0) }
 
+    // 👇 시간 관련 상태 변수 추가
+    var startTime by remember(existingEvent) { mutableStateOf(existingEvent?.startTime ?: LocalTime.of(9, 0)) }
+    var endTime by remember(existingEvent) { mutableStateOf(existingEvent?.endTime ?: LocalTime.of(10, 0)) }
+
     val colors = listOf(Color(0xFF4A80F0), Color(0xFF4CAF50), Color(0xFFF44336), Color(0xFF9C27B0), Color(0xFFE91E63))
     val inputBackgroundColor = Color(0xFFF3F4F6)
     val context = LocalContext.current
     val isEditMode = existingEvent != null
+    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") } // 시간 포맷터 추가
 
+    // 위치 검색 결과를 받는 Launcher (LocationActivity 연동용)
     val locationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            // LocationActivity에서 "result_place_name"라는 이름으로 보냈다고 가정
             val placeName = result.data?.getStringExtra("result_place_name")
             if (placeName != null) {
                 location = placeName // 받아온 값으로 위치 변수 업데이트!
             }
         }
+    }
+
+    // 👇 TimePickerDialog를 띄워주는 함수 정의 (시작/종료 시간 유효성 검사 포함)
+    val showTimePicker = { isStartTime: Boolean ->
+        val initialTime = if (isStartTime) startTime else endTime
+
+        TimePickerDialog(
+            context,
+            { _, hour: Int, minute: Int ->
+                val selectedTime = LocalTime.of(hour, minute)
+
+                if (isStartTime) {
+                    startTime = selectedTime
+                    // 시작 시간이 종료 시간보다 늦다면, 종료 시간도 1시간 뒤로 조정
+                    if (startTime.isAfter(endTime) || startTime.equals(endTime)) {
+                        endTime = startTime.plusHours(1).withMinute(minute)
+                    }
+                } else {
+                    // 종료 시간이 시작 시간보다 빠르거나 같다면, 경고 메시지를 띄우고 시간을 변경하지 않음
+                    if (selectedTime.isBefore(startTime) || selectedTime.equals(startTime)) {
+                        Toast.makeText(context, "종료 시간이 시작 시간보다 빠르거나 같을 수 없습니다.", Toast.LENGTH_SHORT).show()
+                    } else {
+                        endTime = selectedTime
+                    }
+                }
+            },
+            initialTime.hour, // 초기 시간 (시)
+            initialTime.minute, // 초기 시간 (분)
+            true // 24시간 형식 사용
+        ).show()
     }
 
     Column(
@@ -184,26 +214,30 @@ fun AddOrEditEventSheet(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 시간 입력 (더미 UI)
+        // 👇 시간 입력 (클릭 가능하도록 수정)
         Row(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.weight(1f)) {
+            // [A] 시작 시간 설정 - clickable 추가
+            Column(modifier = Modifier.weight(1f).clickable { showTimePicker(true) }) {
                 Text("시작 시간", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(modifier = Modifier.fillMaxWidth().height(50.dp).background(inputBackgroundColor, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("09:00", fontSize = 14.sp, color = Color.Gray)
+                    Text(startTime.format(timeFormatter), fontSize = 14.sp, color = Color.Black) // 👈 상태 변수 값 표시
                     Icon(Icons.Outlined.AccessTime, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.Gray)
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
+
+            // [B] 종료 시간 설정 - clickable 추가
+            Column(modifier = Modifier.weight(1f).clickable { showTimePicker(false) }) {
                 Text("종료 시간", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(modifier = Modifier.fillMaxWidth().height(50.dp).background(inputBackgroundColor, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("10:00", fontSize = 14.sp, color = Color.Gray)
+                    Text(endTime.format(timeFormatter), fontSize = 14.sp, color = Color.Black) // 👈 상태 변수 값 표시
                     Icon(Icons.Outlined.AccessTime, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.Gray)
                 }
             }
         }
+        // 👆 시간 입력 (클릭 가능하도록 수정)
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -219,33 +253,23 @@ fun AddOrEditEventSheet(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 설명 및 위치
+        // 설명 입력
         Text("설명", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
         Spacer(modifier = Modifier.height(4.dp))
         TextField(value = description, onValueChange = { description = it }, placeholder = { Text("일정 설명", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth().height(70.dp), colors = TextFieldDefaults.colors(focusedContainerColor = inputBackgroundColor, unfocusedContainerColor = inputBackgroundColor, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent), shape = RoundedCornerShape(8.dp), textStyle = TextStyle(fontSize = 14.sp))
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // ▼▼▼ [여기서부터 기존 코드를 지우고 붙여넣으세요] ▼▼▼
-        // [2] 변경된 부분: 위치 입력 칸 수정
+        // 위치 입력 (LocationActivity 호출 로직 유지)
         Text("위치", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
         Spacer(modifier = Modifier.height(4.dp))
-
-        // 클릭 이벤트를 위해 Box로 감쌈
         Box(modifier = Modifier.fillMaxWidth()) {
-            // 1. 화면에 보이는 입력창 (모양 담당)
             TextField(
                 value = location,
                 onValueChange = {}, // 입력 막음
                 placeholder = { Text("터치하여 장소 검색", fontSize = 12.sp) },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color(0xFFF3F4F6),
-                    unfocusedContainerColor = Color(0xFFF3F4F6),
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledContainerColor = Color(0xFFF3F4F6)
-                ),
+                colors = TextFieldDefaults.colors(focusedContainerColor = inputBackgroundColor, unfocusedContainerColor = inputBackgroundColor, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledContainerColor = inputBackgroundColor),
                 shape = RoundedCornerShape(8.dp),
                 singleLine = true,
                 textStyle = TextStyle(fontSize = 14.sp),
@@ -253,19 +277,16 @@ fun AddOrEditEventSheet(
                 trailingIcon = { Icon(Icons.Default.Place, contentDescription = null, tint = Color.Gray) }
             )
 
-            // 2. 투명한 클릭 영역 (기능 담당) - 여기가 핵심입니다!
-            // matchParentSize()로 입력창과 똑같은 크기의 투명한 막을 위에 덮습니다.
+            // 투명한 클릭 영역 (LocationActivity 실행)
             Box(
                 modifier = Modifier
                     .matchParentSize()
                     .clickable {
-                        // 입력창 아무데나 눌러도 실행됨
                         val intent = Intent(context, LocationActivity::class.java)
                         locationLauncher.launch(intent)
                     }
             )
         }
-        // ▲▲▲ [여기까지 붙여넣기] ▲▲▲
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -278,11 +299,12 @@ fun AddOrEditEventSheet(
                     id = existingEvent?.id ?: 0,
                     date = selectedDate,
                     title = title,
-                    startTime = LocalTime.of(9, 0),
-                    endTime = LocalTime.of(10, 0),
+                    startTime = startTime, // 👈 수정된 상태 변수 사용
+                    endTime = endTime,     // 👈 수정된 상태 변수 사용
                     location = location,
                     notes = description,
                     colorIndex = selectedColorIndex
+                    // TODO: LocationActivity에서 받아온 위도/경도 정보도 Event에 저장하는 로직이 필요합니다.
                 )
                 onSave(eventToSave)
             }

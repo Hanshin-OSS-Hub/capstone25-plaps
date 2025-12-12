@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.plaps.data.Event
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth

@@ -1,5 +1,8 @@
 package com.example.plaps
 
+import com.example.plaps.data.AppDatabase // AppDatabase.kt 파일에서 가져옴
+import com.example.plaps.data.Event // 👈 New Import
+import com.example.plaps.data.EventDao     // EventDao.kt 파일에서 가져옴
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
