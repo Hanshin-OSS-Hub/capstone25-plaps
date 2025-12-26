@@ -91,13 +91,6 @@ fun SplashScreen() {
             )
 
             Spacer(modifier = Modifier.height(32.dp))
-
-            // 로딩 돌아가는 인디케이터 설정 해놓음
-            CircularProgressIndicator(
-                color = Color.White,
-                modifier = Modifier.size(32.dp),
-                strokeWidth = 3.dp
-            )
         }
     }
 }
