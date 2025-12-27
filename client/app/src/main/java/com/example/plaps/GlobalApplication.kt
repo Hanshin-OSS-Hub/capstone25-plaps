@@ -3,8 +3,10 @@ package com.example.plaps
 import android.app.Application
 import com.kakao.vectormap.KakaoMapSdk
 import com.kakaomobility.knsdk.KNSDK
+import dagger.hilt.android.HiltAndroidApp // 👈 Hilt Import
 
 // 앱이 실행되는 순간 호출됨.
+@HiltAndroidApp // 👈 Hilt 사용 선언
 class GlobalApplication : Application() {
     // 카카오 내비용 opject
 

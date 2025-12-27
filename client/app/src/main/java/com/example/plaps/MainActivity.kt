@@ -24,7 +24,6 @@ import kotlinx.coroutines.delay
 import dagger.hilt.android.AndroidEntryPoint // 👈 Hilt Import
 
 @AndroidEntryPoint
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

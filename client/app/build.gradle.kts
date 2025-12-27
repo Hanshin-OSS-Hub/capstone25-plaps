@@ -7,6 +7,7 @@ plugins {
     
     // KSP 플러그인 : Room 컴파일러용
     id("com.google.devtools.ksp") version "2.0.21-1.0.28"
+    id("com.google.dagger.hilt.android")
 }
 
 val localProperties = Properties().apply{
@@ -64,6 +65,10 @@ android {
 
 
 dependencies {
+    // ✨ [Hilt 라이브러리 추가] ✨
+    implementation("com.google.dagger:hilt-android:2.51.1")
+    ksp("com.google.dagger:hilt-compiler:2.51.1") // KSP 사용 시
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0") // Compose 연동용
     
     // 카카오 내비 의존성
     implementation("com.kakaomobility.knsdk:knsdk_ui:1.12.8")
