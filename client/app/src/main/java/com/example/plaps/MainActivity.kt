@@ -21,6 +21,9 @@ import androidx.compose.ui.unit.sp
 import com.example.plaps.ui.theme.PlapsTheme
 import com.kakao.sdk.common.util.Utility
 import kotlinx.coroutines.delay
+import dagger.hilt.android.AndroidEntryPoint // 👈 Hilt Import
+
+@AndroidEntryPoint
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
