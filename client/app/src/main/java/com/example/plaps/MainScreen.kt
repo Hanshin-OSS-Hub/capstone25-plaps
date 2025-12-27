@@ -18,7 +18,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel // 👈 Hilt 전용 ViewModel 함수 import
+import androidx.lifecycle.compose.collectAsStateWithLifecycle // 👈 Lifecycle-aware Flow 수집
 import com.example.plaps.data.Event
 
 
@@ -32,14 +33,14 @@ enum class BottomNavItem(val title: String, val icon: ImageVector) {
 
 //Scaffold를 사용하여 상단/하단 바와 메인 컨텐츠 영역을 구성합니다.
 @Composable
-fun MainAppScreen(viewModel: EventViewModel = viewModel()) {
+fun MainAppScreen(viewModel: EventViewModel = hiltViewModel()) {
     // 현재 선택된 탭의 상태를 관리 (기본값: Home)
     // remember를 사용하여 재구성(Recomposition) 시에도 상태를 유지
     var currentTab by remember { mutableStateOf(BottomNavItem.Home) }
 
     // ViewModel의 Flow 데이터를 Compose의 State로 변환
     // DB에 데이터가 추가, 수정, 삭제 시 자동으로 events 변수가 업데이트되어 UI가 갱신
-    val events by viewModel.allEvents.collectAsState()
+    val events by viewModel.allEvents.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = Modifier
