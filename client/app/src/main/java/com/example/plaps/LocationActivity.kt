@@ -112,6 +112,8 @@ class LocationActivity : AppCompatActivity() {
 
             // place.placeName은 "스타벅스 강남점" 같은 실제 장소 이름
             intent.putExtra("result_place_name", place.placeName)
+            intent.putExtra("result_lat", place.y.toDouble())
+            intent.putExtra("result_lng", place.x.toDouble())
 
             // 결과 설정 (OK 신호 + 데이터)
             setResult(RESULT_OK, intent)

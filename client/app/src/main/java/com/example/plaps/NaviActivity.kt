@@ -32,6 +32,9 @@ import com.kakaomobility.knsdk.trip.kntrip.KNTrip
 import com.kakaomobility.knsdk.trip.kntrip.knroute.KNRoute
 import com.kakao.sdk.common.util.Utility
 
+/* 좌표변환 + 안내 메시지*/
+import android.widget.Toast
+import com.kakaomobility.knsdk.KNSDK
 
 class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuidance_LocationGuideDelegate, KNGuidance_RouteGuideDelegate,
     KNGuidance_SafetyGuideDelegate, KNGuidance_VoiceGuideDelegate, KNGuidance_CitsGuideDelegate {
@@ -57,39 +60,53 @@ class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuida
      * 주행 경로를 요청합니다.
      */
     fun requestRoute() {
-        // 별도 Thread 필요 없음
         val gpsData = GlobalApplication.knsdk.sharedGpsManager()?.recentGpsData
+
+        // GPS가 없을 때 그냥 리턴하지 않고, 화면을 종료
         val pos = gpsData?.pos ?: run {
-            Log.e("NAVI", "GPS 위치 없음")
+            Toast.makeText(this, "GPS 신호를 잡을 수 없습니다.", Toast.LENGTH_SHORT).show()
+            finish()
             return
         }
-        Log.d("NAVI", "현재 위치 pos.x = ${pos.x}, pos.y = ${pos.y}")
-        val tmX = 313851;
-        val tmY = 510531;
 
-        val x = 127.027451982136  // ← 경도(lon)
-        val y = 37.1925943198315  // ← 위도(lat)
+        // 이전 화면에서 넘겨준 목적지 정보(이름, 위도, 경도)를 받음
+        val destName = intent.getStringExtra("DEST_NAME") ?: "목적지"
+        val destLat = intent.getDoubleExtra("DEST_LAT", 0.0)
+        val destLon = intent.getDoubleExtra("DEST_LON", 0.0)
 
+        // 목적지 정보가 제대로 안 넘어왔을 경우 예외 처리 추가
+        if (destLat == 0.0 || destLon == 0.0) {
+            Toast.makeText(this, "등록된 위치 정보가 없어 안내할 수 없습니다.", Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
+
+        // 좌표(WGS84)를 카카오 내비 좌표(KATEC)로 변환
+        val katec = KNSDK.convertWGS84ToKATEC(destLon, destLat)
+
+        // 변환된 좌표를 정수(Int)로 명확하게 변환 (에러 방지)
+        val goalX = katec.x.toInt()
+        val goalY = katec.y.toInt()
+
+        Log.d("NAVI", "경로 요청: $destName ($destLat, $destLon) -> KATEC($goalX, $goalY)")
+
+        // 출발지/목적지 설정 시 변환된 변수 사용
         val startPoi = KNPOI("현위치", pos.x.toInt(), pos.y.toInt(), "현위치")
-        val goalPoi = KNPOI("목적지", tmX, tmY, "목적지")
+        val goalPoi = KNPOI(destName, goalX, goalY, destName)
 
         GlobalApplication.knsdk.makeTripWithStart(
             aStart = startPoi,
             aGoal = goalPoi,
             aVias = null
         ) { aError, aTrip ->
-
             if (aError == null && aTrip != null) {
-                // UI 스레드에서 주행 시작
-                Log.d("NAVI", "Trip success: $aTrip")
-                runOnUiThread {
-                    startGuide(aTrip)
-                }
+                runOnUiThread { startGuide(aTrip) }
             } else {
-                android.util.Log.e("KNSDK", "Route fail: code=${aError?.code}, detail=$aError")
-                android.widget.Toast
-                    .makeText(this, "경로 요청 실패: ${aError?.code}", android.widget.Toast.LENGTH_SHORT)
-                    .show()
+                // 경로 탐색 실패 시 사용자에게 Toast 알림 표시
+                runOnUiThread {
+                    Toast.makeText(this, "경로 요청 실패: ${aError?.code}", Toast.LENGTH_SHORT).show()
+                    finish()
+                }
             }
         }
     }

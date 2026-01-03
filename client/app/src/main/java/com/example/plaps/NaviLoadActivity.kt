@@ -77,15 +77,26 @@ class NaviLoadActivity : AppCompatActivity(){
                 aLangType = KNLanguageType.KNLanguageType_KOREAN,   // 언어 타입
                 aCompletion = {
 
-                    // Toast는 UI를 갱신하는 작업이기 때문에 UIThread에서 동작되도록 해야 합니다.
                     runOnUiThread {
                         if (it != null) {
-                            Toast.makeText(applicationContext, "인증에 실패하였습니다", Toast.LENGTH_LONG).show()
-
+                            // 에러일 경우 띄워줌
+                            Toast.makeText(applicationContext, "인증에 실패하였습니다: ${it.code}", Toast.LENGTH_LONG).show()
                         } else {
-                            Toast.makeText(applicationContext, "인증 성공하였습니다", Toast.LENGTH_LONG).show()
+                            // 성공 메시지(필요 없는거 같다면 주석)
+                             Toast.makeText(applicationContext, "인증 성공하였습니다", Toast.LENGTH_SHORT).show()
 
                             var intent = Intent(this@NaviLoadActivity, NaviActivity::class.java)
+
+                            // 넘어온 목적지 정보를 받아옴
+                            val destName = this@NaviLoadActivity.intent.getStringExtra("DEST_NAME")
+                            val destLat = this@NaviLoadActivity.intent.getDoubleExtra("DEST_LAT", 0.0)
+                            val destLon = this@NaviLoadActivity.intent.getDoubleExtra("DEST_LON", 0.0)
+
+                            // NaviActivity로 다시 넘겨줍니다. (이게 없으면 NaviActivity가 목적지를 모름)
+                            intent.putExtra("DEST_NAME", destName)
+                            intent.putExtra("DEST_LAT", destLat)
+                            intent.putExtra("DEST_LON", destLon)
+
                             this@NaviLoadActivity.startActivity(intent)
 
                             finish()
