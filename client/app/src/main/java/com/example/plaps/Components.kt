@@ -1,7 +1,7 @@
 package com.example.plaps
 
 import android.app.Activity
-import android.app.TimePickerDialog // 👈 TimePickerDialog를 위한 import
+import android.app.TimePickerDialog
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -28,10 +28,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.plaps.data.Event // Event 클래스 import
+import com.example.plaps.data.Event
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EventItem(event: Event, onClick: (Event) -> Unit) {
@@ -70,13 +72,18 @@ fun EventItem(event: Event, onClick: (Event) -> Unit) {
                     }
                 }
             }
-
-            // 3. 오른쪽 길찾기 버튼 (위치 정보가 있을 때만 표시)
-            if (event.location.isNotBlank()) {
+            //길찾기 버튼에 데이터 전달 로직 추가
+            //3. 오른쪽 길찾기 버튼 (좌표 정보가 있을 때만 표시)
+            // event.latitude, longitude가 null이 아닐 때만 버튼이 보입니다.
+            if (event.latitude != null && event.longitude != null) {
                 Button(
                     onClick = {
-                        // TODO: [NaviLoadActivity]로 위도/경도 정보를 전달하는 로직 추가 필요
-                        val intent = Intent(context, NaviLoadActivity::class.java)
+                        // ★ [수정 핵심] Intent에 장소 이름, 위도, 경도를 담아서 보냄
+                        val intent = Intent(context, NaviLoadActivity::class.java).apply {
+                            putExtra("DEST_NAME", event.location)
+                            putExtra("DEST_LAT", event.latitude)  // Double
+                            putExtra("DEST_LON", event.longitude) // Double
+                        }
                         context.startActivity(intent)
                         Toast.makeText(context, "길찾기 기능 (NaviLoadActivity) 준비 중", Toast.LENGTH_SHORT).show()
                     },
@@ -108,6 +115,7 @@ fun EmptyScheduleView() {
     }
 }
 
+// [추가 수정] AddOrEditEventSheet: 좌표 저장 로직 추가
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddOrEditEventSheet(
@@ -121,38 +129,50 @@ fun AddOrEditEventSheet(
     var location by remember(existingEvent) { mutableStateOf(existingEvent?.location ?: "") }
     var description by remember(existingEvent) { mutableStateOf(existingEvent?.notes ?: "") }
     var selectedColorIndex by remember(existingEvent) { mutableStateOf(existingEvent?.colorIndex ?: 0) }
-
     // 👇 시간 관련 상태 변수 추가
     var startTime by remember(existingEvent) { mutableStateOf(existingEvent?.startTime ?: LocalTime.of(9, 0)) }
     var endTime by remember(existingEvent) { mutableStateOf(existingEvent?.endTime ?: LocalTime.of(10, 0)) }
+
+    //  좌표를 저장할 상태 변수 (기존 값 있으면 불러오고, 없으면 null)
+    var latitude by remember(existingEvent) { mutableStateOf(existingEvent?.latitude) }
+    var longitude by remember(existingEvent) { mutableStateOf(existingEvent?.longitude) }
 
     val colors = listOf(Color(0xFF4A80F0), Color(0xFF4CAF50), Color(0xFFF44336), Color(0xFF9C27B0), Color(0xFFE91E63))
     val inputBackgroundColor = Color(0xFFF3F4F6)
     val context = LocalContext.current
     val isEditMode = existingEvent != null
-    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") } // 시간 포맷터 추가
+    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
 
-    // 위치 검색 결과를 받는 Launcher (LocationActivity 연동용)
+    // 위치 검색 결과를 받는 Launcher (LocationActivity에서 결과 받아오기)
     val locationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            val placeName = result.data?.getStringExtra("result_place_name")
-            if (placeName != null) {
-                location = placeName // 받아온 값으로 위치 변수 업데이트!
+            val data = result.data
+            if (data != null) {
+                // 장소 이름 가져오기
+                val placeName = data.getStringExtra("result_place_name")
+                if (placeName != null) location = placeName
+
+                // 좌표 가져오기 (LocationActivity에서 이 이름으로 보내줘야 함)
+                val lat = data.getDoubleExtra("result_lat", 0.0)
+                val lon = data.getDoubleExtra("result_lng", 0.0)
+
+                // 0.0이 아니면 상태 변수에 저장
+                if (lat != 0.0 && lon != 0.0) {
+                    latitude = lat
+                    longitude = lon
+                }
             }
         }
     }
-
     // 👇 TimePickerDialog를 띄워주는 함수 정의 (시작/종료 시간 유효성 검사 포함)
     val showTimePicker = { isStartTime: Boolean ->
         val initialTime = if (isStartTime) startTime else endTime
-
         TimePickerDialog(
             context,
             { _, hour: Int, minute: Int ->
                 val selectedTime = LocalTime.of(hour, minute)
-
                 if (isStartTime) {
                     startTime = selectedTime
                     // 시작 시간이 종료 시간보다 늦다면, 종료 시간도 1시간 뒤로 조정
@@ -216,7 +236,6 @@ fun AddOrEditEventSheet(
 
         // 👇 시간 입력 (클릭 가능하도록 수정)
         Row(modifier = Modifier.fillMaxWidth()) {
-            // [A] 시작 시간 설정 - clickable 추가
             Column(modifier = Modifier.weight(1f).clickable { showTimePicker(true) }) {
                 Text("시작 시간", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
                 Spacer(modifier = Modifier.height(4.dp))
@@ -226,7 +245,6 @@ fun AddOrEditEventSheet(
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))
-
             // [B] 종료 시간 설정 - clickable 추가
             Column(modifier = Modifier.weight(1f).clickable { showTimePicker(false) }) {
                 Text("종료 시간", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
@@ -238,7 +256,6 @@ fun AddOrEditEventSheet(
             }
         }
         // 👆 시간 입력 (클릭 가능하도록 수정)
-
         Spacer(modifier = Modifier.height(12.dp))
 
         // 색상 선택
@@ -276,21 +293,18 @@ fun AddOrEditEventSheet(
                 readOnly = true, // 키보드 안 올라오게 설정
                 trailingIcon = { Icon(Icons.Default.Place, contentDescription = null, tint = Color.Gray) }
             )
-
             // 투명한 클릭 영역 (LocationActivity 실행)
             Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clickable {
-                        val intent = Intent(context, LocationActivity::class.java)
-                        locationLauncher.launch(intent)
-                    }
+                modifier = Modifier.matchParentSize().clickable {
+                    val intent = Intent(context, LocationActivity::class.java)
+                    locationLauncher.launch(intent)
+                }
             )
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // 버튼
+        // 저장 버튼
         Button(onClick = {
             if (title.isBlank()) {
                 Toast.makeText(context, "제목을 입력해주세요", Toast.LENGTH_SHORT).show()
@@ -303,8 +317,10 @@ fun AddOrEditEventSheet(
                     endTime = endTime,     // 👈 수정된 상태 변수 사용
                     location = location,
                     notes = description,
-                    colorIndex = selectedColorIndex
-                    // TODO: LocationActivity에서 받아온 위도/경도 정보도 Event에 저장하는 로직이 필요합니다.
+                    colorIndex = selectedColorIndex,
+                    // 받아온 좌표를 저장
+                    latitude = latitude,
+                    longitude = longitude
                 )
                 onSave(eventToSave)
             }

@@ -9,10 +9,10 @@ import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import com.kakaomobility.knsdk.KNLanguageType
 
-import com.example.plaps.api.service.local.TransCoordRepository
+//import com.example.plaps.api.service.local.TransCoordRepository
 
 class NaviLoadActivity : AppCompatActivity(){
-    private val coordinateRepository = TransCoordRepository()
+//    private val coordinateRepository = TransCoordRepository()
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -83,7 +83,7 @@ class NaviLoadActivity : AppCompatActivity(){
                             Toast.makeText(applicationContext, "인증에 실패하였습니다: ${it.code}", Toast.LENGTH_LONG).show()
                         } else {
                             // 성공 메시지(필요 없는거 같다면 주석)
-                             Toast.makeText(applicationContext, "인증 성공하였습니다", Toast.LENGTH_SHORT).show()
+//                             Toast.makeText(applicationContext, "인증 성공하였습니다", Toast.LENGTH_SHORT).show()
 
                             var intent = Intent(this@NaviLoadActivity, NaviActivity::class.java)
 
