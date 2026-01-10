@@ -11,10 +11,10 @@ import java.time.LocalDate
 // [3] DAO: DB 조작 인터페이스
 @Dao
 interface EventDao {
-    @Query("SELECT * FROM events")
+    @Query("SELECT * FROM events ORDER BY date ASC, startTime ASC")
     fun getAllEvents(): Flow<List<Event>> // 모든 일정 조회
 
-    @Query("SELECT * FROM events WHERE date = :date")
+    @Query("SELECT * FROM events WHERE date = :date ORDER BY startTime ASC")
     fun getEventsByDate(date: LocalDate): Flow<List<Event>> // 특정 날짜 일정 조회
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

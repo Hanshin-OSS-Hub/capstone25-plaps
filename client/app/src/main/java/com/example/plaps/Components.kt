@@ -119,6 +119,10 @@ fun AddOrEditEventSheet(
 ) {
     var title by remember(existingEvent) { mutableStateOf(existingEvent?.title ?: "") }
     var location by remember(existingEvent) { mutableStateOf(existingEvent?.location ?: "") }
+    // 👇 위도, 경도 변수를 remember 상태로 추가
+    var latitude by remember(existingEvent) { mutableStateOf(existingEvent?.latitude ?: 0.0) }
+    var longitude by remember(existingEvent) { mutableStateOf(existingEvent?.longitude ?: 0.0) }
+
     var description by remember(existingEvent) { mutableStateOf(existingEvent?.notes ?: "") }
     var selectedColorIndex by remember(existingEvent) { mutableStateOf(existingEvent?.colorIndex ?: 0) }
 
@@ -137,10 +141,10 @@ fun AddOrEditEventSheet(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            val placeName = result.data?.getStringExtra("result_place_name")
-            if (placeName != null) {
-                location = placeName // 받아온 값으로 위치 변수 업데이트!
-            }
+            val data = result.data
+            location = data?.getStringExtra("result_place_name") ?: ""
+            latitude = data?.getDoubleExtra("result_lat", 0.0) ?: 0.0 // 위도 업데이트
+            longitude = data?.getDoubleExtra("result_lng", 0.0) ?: 0.0 // 경도 업데이트
         }
     }
 
@@ -292,6 +296,11 @@ fun AddOrEditEventSheet(
 
         // 버튼
         Button(onClick = {
+            // [추가된 로직] 시작 시간이 종료 시간보다 늦은지 확인
+            if (startTime.isAfter(endTime)) {
+                Toast.makeText(context, "종료 시간은 시작 시간보다 늦어야 합니다.", Toast.LENGTH_SHORT).show()
+                return@Button // 저장을 하지 않고 함수를 빠져나갑니다.
+            }
             if (title.isBlank()) {
                 Toast.makeText(context, "제목을 입력해주세요", Toast.LENGTH_SHORT).show()
             } else {
@@ -302,6 +311,9 @@ fun AddOrEditEventSheet(
                     startTime = startTime, // 👈 수정된 상태 변수 사용
                     endTime = endTime,     // 👈 수정된 상태 변수 사용
                     location = location,
+                    // 장소 정보가 있을 때만 좌표값 저장, 없으면 0.0
+                    latitude = if (location.isNotBlank()) (latitude ?: 0.0) else 0.0,
+                    longitude = if (location.isNotBlank()) (longitude ?: 0.0) else 0.0,
                     notes = description,
                     colorIndex = selectedColorIndex
                     // TODO: LocationActivity에서 받아온 위도/경도 정보도 Event에 저장하는 로직이 필요합니다.
