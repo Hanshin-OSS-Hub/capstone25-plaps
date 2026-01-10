@@ -30,8 +30,10 @@ import com.kakaomobility.knsdk.guidance.knguidance.safetyguide.objects.KNSafety
 import com.kakaomobility.knsdk.guidance.knguidance.voiceguide.KNGuide_Voice
 import com.kakaomobility.knsdk.trip.kntrip.KNTrip
 import com.kakaomobility.knsdk.trip.kntrip.knroute.KNRoute
-import com.kakao.sdk.common.util.Utility
 
+/* 좌표변환 + 안내 메시지*/
+import android.widget.Toast
+import com.kakaomobility.knsdk.KNSDK
 
 class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuidance_LocationGuideDelegate, KNGuidance_RouteGuideDelegate,
     KNGuidance_SafetyGuideDelegate, KNGuidance_VoiceGuideDelegate, KNGuidance_CitsGuideDelegate {
@@ -44,7 +46,6 @@ class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuida
 
         naviView = findViewById(R.id.navi_view)
 
-        // status bar 영역까지 사용하기 위한 옵션
         window?.apply {
             statusBarColor = Color.TRANSPARENT
             decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
@@ -52,44 +53,56 @@ class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuida
 
         requestRoute()
     }
-
     /**
      * 주행 경로를 요청합니다.
      */
     fun requestRoute() {
-        // 별도 Thread 필요 없음
+        // GPS가 없을 때 그냥 리턴하지 않고, 화면을 종료
         val gpsData = GlobalApplication.knsdk.sharedGpsManager()?.recentGpsData
         val pos = gpsData?.pos ?: run {
-            Log.e("NAVI", "GPS 위치 없음")
+            Toast.makeText(this, "GPS 신호를 잡을 수 없습니다.", Toast.LENGTH_SHORT).show()
+            finish()
             return
         }
-        Log.d("NAVI", "현재 위치 pos.x = ${pos.x}, pos.y = ${pos.y}")
-        val tmX = 313851;
-        val tmY = 510531;
+        // 이전 화면에서 넘겨준 목적지 정보(이름, 위도, 경도)를 받음
 
-        val x = 127.027451982136  // ← 경도(lon)
-        val y = 37.1925943198315  // ← 위도(lat)
+        val destName = intent.getStringExtra("DEST_NAME") ?: "목적지"
+        val destLat = intent.getDoubleExtra("DEST_LAT", 0.0)
+        val destLon = intent.getDoubleExtra("DEST_LON", 0.0)
 
+        if (destLat == 0.0 || destLon == 0.0) {
+            Toast.makeText(this, "등록된 위치 정보가 없어 안내할 수 없습니다.", Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
+
+        // 좌표 변환 (WGS84 -> KATEC)
+        val katec = KNSDK.convertWGS84ToKATEC(destLon, destLat)
+
+        // 변환된 좌표를 정수(Int)로 변환(에러 방지)
+        val goalX = katec.x.toInt()
+        val goalY = katec.y.toInt()
+
+        Log.d("NAVI", "경로 요청: $destName ($destLat, $destLon) -> KATEC($goalX, $goalY)")
+
+
+        // pos.x, pos.y도 .toInt()를 붙여서 안전하게 넣습니다.
         val startPoi = KNPOI("현위치", pos.x.toInt(), pos.y.toInt(), "현위치")
-        val goalPoi = KNPOI("목적지", tmX, tmY, "목적지")
+        val goalPoi = KNPOI(destName, goalX, goalY, destName)
 
         GlobalApplication.knsdk.makeTripWithStart(
             aStart = startPoi,
             aGoal = goalPoi,
             aVias = null
         ) { aError, aTrip ->
-
             if (aError == null && aTrip != null) {
-                // UI 스레드에서 주행 시작
-                Log.d("NAVI", "Trip success: $aTrip")
-                runOnUiThread {
-                    startGuide(aTrip)
-                }
+                runOnUiThread { startGuide(aTrip) }
             } else {
-                android.util.Log.e("KNSDK", "Route fail: code=${aError?.code}, detail=$aError")
-                android.widget.Toast
-                    .makeText(this, "경로 요청 실패: ${aError?.code}", android.widget.Toast.LENGTH_SHORT)
-                    .show()
+                // 경로 탐색 실패 시 사용자에게 Toast 알림 표시
+                runOnUiThread {
+                    Toast.makeText(this, "경로 요청 실패: ${aError?.code}", Toast.LENGTH_SHORT).show()
+                    finish()
+                }
             }
         }
     }
@@ -103,12 +116,11 @@ class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuida
             safetyGuideDelegate = this@NaviActivity
             voiceGuideDelegate = this@NaviActivity
             citsGuideDelegate = this@NaviActivity
-
             // trip의 startWithTrip으로 안내를 진짜로 시작함.
             startWithTrip(
                 aTrip = trip,
                 aPriority = KNRoutePriority.KNRoutePriority_Recommand,
-                aAvoidOptions = 0   // 우회 옵션 없으면 0
+                aAvoidOptions = 0
             )
 
             naviView.initWithGuidance(
@@ -120,22 +132,16 @@ class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuida
         }
     }
 
+    // --- Delegate 메서드들 (유지) ---
     override fun guidanceCheckingRouteChange(aGuidance: KNGuidance) {
         naviView.guidanceCheckingRouteChange(aGuidance)
     }
 
-    override fun guidanceDidUpdateIndoorRoute(
-        aGuidance: KNGuidance,
-        aRoute: KNRoute?
-    ) {
+    override fun guidanceDidUpdateIndoorRoute(aGuidance: KNGuidance, aRoute: KNRoute?) {
         naviView.guidanceDidUpdateIndoorRoute(aGuidance, aRoute)
     }
 
-    override fun guidanceDidUpdateRoutes(
-        aGuidance: KNGuidance,
-        aRoutes: List<KNRoute>,
-        aMultiRouteInfo: KNMultiRouteInfo?
-    ) {
+    override fun guidanceDidUpdateRoutes(aGuidance: KNGuidance, aRoutes: List<KNRoute>, aMultiRouteInfo: KNMultiRouteInfo?) {
         naviView.guidanceDidUpdateRoutes(aGuidance, aRoutes, aMultiRouteInfo)
     }
 
@@ -151,14 +157,7 @@ class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuida
         naviView.guidanceOutOfRoute(aGuidance)
     }
 
-    override fun guidanceRouteChanged(
-        aGuidance: KNGuidance,
-        aFromRoute: KNRoute,
-        aFromLocation: KNLocation,
-        aToRoute: KNRoute,
-        aToLocation: KNLocation,
-        aChangeReason: KNGuideRouteChangeReason
-    ) {
+    override fun guidanceRouteChanged(aGuidance: KNGuidance, aFromRoute: KNRoute, aFromLocation: KNLocation, aToRoute: KNRoute, aToLocation: KNLocation, aChangeReason: KNGuideRouteChangeReason) {
         naviView.guidanceRouteChanged(aGuidance)
     }
 
@@ -166,68 +165,39 @@ class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuida
         naviView.guidanceRouteUnchanged(aGuidance)
     }
 
-    override fun guidanceRouteUnchangedWithError(
-        aGuidnace: KNGuidance,
-        aError: KNError
-    ) {
+    override fun guidanceRouteUnchangedWithError(aGuidnace: KNGuidance, aError: KNError) {
         naviView.guidanceRouteUnchangedWithError(aGuidnace, aError)
     }
 
-    override fun guidanceDidUpdateLocation(
-        aGuidance: KNGuidance,
-        aLocationGuide: KNGuide_Location
-    ) {
+    override fun guidanceDidUpdateLocation(aGuidance: KNGuidance, aLocationGuide: KNGuide_Location) {
         naviView.guidanceDidUpdateLocation(aGuidance, aLocationGuide)
     }
 
-    override fun guidanceDidUpdateRouteGuide(
-        aGuidance: KNGuidance,
-        aRouteGuide: KNGuide_Route
-    ) {
+    override fun guidanceDidUpdateRouteGuide(aGuidance: KNGuidance, aRouteGuide: KNGuide_Route) {
         naviView.guidanceDidUpdateRouteGuide(aGuidance, aRouteGuide)
     }
 
-    override fun guidanceDidUpdateAroundSafeties(
-        aGuidance: KNGuidance,
-        aSafeties: List<KNSafety>?
-    ) {
+    override fun guidanceDidUpdateAroundSafeties(aGuidance: KNGuidance, aSafeties: List<KNSafety>?) {
         naviView.guidanceDidUpdateAroundSafeties(aGuidance, aSafeties)
     }
 
-    override fun guidanceDidUpdateSafetyGuide(
-        aGuidance: KNGuidance,
-        aSafetyGuide: KNGuide_Safety?
-    ) {
+    override fun guidanceDidUpdateSafetyGuide(aGuidance: KNGuidance, aSafetyGuide: KNGuide_Safety?) {
         naviView.guidanceDidUpdateSafetyGuide(aGuidance, aSafetyGuide)
     }
 
-    override fun didFinishPlayVoiceGuide(
-        aGuidance: KNGuidance,
-        aVoiceGuide: KNGuide_Voice
-    ) {
+    override fun didFinishPlayVoiceGuide(aGuidance: KNGuidance, aVoiceGuide: KNGuide_Voice) {
         naviView.didFinishPlayVoiceGuide(aGuidance, aVoiceGuide)
     }
 
-    override fun shouldPlayVoiceGuide(
-        aGuidance: KNGuidance,
-        aVoiceGuide: KNGuide_Voice,
-        aNewData: MutableList<ByteArray>
-    ): Boolean {
+    override fun shouldPlayVoiceGuide(aGuidance: KNGuidance, aVoiceGuide: KNGuide_Voice, aNewData: MutableList<ByteArray>): Boolean {
         return naviView.shouldPlayVoiceGuide(aGuidance, aVoiceGuide, aNewData)
     }
 
-    override fun willPlayVoiceGuide(
-        aGuidance: KNGuidance,
-        aVoiceGuide: KNGuide_Voice
-    ) {
+    override fun willPlayVoiceGuide(aGuidance: KNGuidance, aVoiceGuide: KNGuide_Voice) {
         naviView.willPlayVoiceGuide(aGuidance, aVoiceGuide)
     }
 
-    override fun didUpdateCitsGuide(
-        aGuidance: KNGuidance,
-        aCitsGuide: KNGuide_Cits
-    ) {
+    override fun didUpdateCitsGuide(aGuidance: KNGuidance, aCitsGuide: KNGuide_Cits) {
         naviView.didUpdateCitsGuide(aGuidance, aCitsGuide)
     }
-
 }
