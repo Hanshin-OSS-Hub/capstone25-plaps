@@ -22,4 +22,9 @@ interface EventDao {
 
     @Delete
     suspend fun deleteEvent(event: Event) // 일정 삭제
+
+    // 완료된 일정만 가져오기 (업적 체크용)
+    @Query("SELECT COUNT(*) FROM events WHERE isCompleted = 1")
+    suspend fun getCompletedCount(): Int
+
 }

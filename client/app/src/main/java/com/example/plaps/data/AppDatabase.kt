@@ -12,6 +12,7 @@ abstract class AppDatabase : RoomDatabase() {
 
     // 이 메서드를 통해 Event 테이블에 접근하는 DAO 인터페이스를 외부에 노출합니다.
     abstract fun eventDao(): EventDao
+    abstract fun achievementDao(): AchievementDao //업적 관련 테이블 추가.
 
     // 기존의 Companion Object (getDatabase 함수)는 Hilt가 대신하므로 제거
 }
