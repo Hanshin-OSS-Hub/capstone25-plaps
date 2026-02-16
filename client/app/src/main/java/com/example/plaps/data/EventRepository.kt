@@ -1,6 +1,7 @@
 package com.example.plaps.data
 
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -8,8 +9,9 @@ import javax.inject.Singleton
 // @Inject constructor를 사용하여 Hilt에게 이 클래스를 만들고 주입할 수 있도록 알립니다.
 @Singleton // 앱 전체에서 단 하나의 인스턴스만 사용하도록 지정
 class EventRepository @Inject constructor(
-    private val eventDao: EventDao // Hilt가 EventDao 객체를 알아서 주입해 줍니다.
-) {
+    private val eventDao: EventDao, // Hilt가 EventDao 객체를 알아서 주입해 줍니다.
+    private val achievementDao: AchievementDao // AchievementDao 주입 추가
+    ) {
     // 모든 이벤트를 Flow 형태로 반환합니다.
     fun getAllEvents(): Flow<List<Event>> = eventDao.getAllEvents()
 
@@ -21,5 +23,20 @@ class EventRepository @Inject constructor(
     // 일정 삭제
     suspend fun deleteEvent(event: Event) {
         eventDao.deleteEvent(event)
+    }
+    // 모든 성취도 목록 가져오기
+    fun getAllAchievements(): Flow<List<Achievement>> = achievementDao.getAllAchievements()
+
+    // 특정 성취도 달성 처리
+    suspend fun unlockAchievement(achievementId: String) {
+        val achievement = achievementDao.getAchievementById(achievementId)
+        // 성취도가 존재하고 아직 달성 전이라면 업데이트
+        if (achievement != null && !achievement.isUnlocked) {
+            val updated = achievement.copy(
+                isUnlocked = true,
+                unlockDate = LocalDate.now()
+            )
+            achievementDao.updateAchievement(updated)
+        }
     }
 }
