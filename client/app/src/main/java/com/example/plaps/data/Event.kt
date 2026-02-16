@@ -20,5 +20,6 @@ data class Event(
     val colorIndex: Int = 0,
     val latitude: Double? = null,
     val longitude: Double? = null,
-    val roadAddress: String? = null
+    val roadAddress: String? = null,
+    val priority: Int = 0          // 0:보통, 1:중요 (정렬 시 활용)
 )
