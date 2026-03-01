@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.example.plaps.data.AppDatabase
 import com.example.plaps.data.EventDao
+import com.example.plaps.data.AchievementDao // 👈 추가
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -35,5 +36,11 @@ object AppModule {
     fun provideEventDao(database: AppDatabase): EventDao {
         // Hilt가 provideDatabase 함수가 반환한 AppDatabase 인스턴스를 자동으로 주입해 줍니다.
         return database.eventDao()
+    }
+    // [2-3] AchievementDao 제공 (👈 이 부분을 새로 추가했습니다!)
+    @Provides
+    fun provideAchievementDao(database: AppDatabase): AchievementDao {
+        // Hilt가 위에서 만든 database 인스턴스를 사용해 AchievementDao를 가져옵니다.
+        return database.achievementDao()
     }
 }
