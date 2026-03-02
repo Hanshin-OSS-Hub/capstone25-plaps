@@ -221,7 +221,7 @@ fun AddOrEditEventSheet(
         // 제목 입력
         Text("제목 *", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
         Spacer(modifier = Modifier.height(4.dp))
-        TextField(value = title, onValueChange = { title = it }, placeholder = { Text("일정 제목", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth().height(50.dp), colors = TextFieldDefaults.colors(focusedContainerColor = inputBackgroundColor, unfocusedContainerColor = inputBackgroundColor, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent), shape = RoundedCornerShape(8.dp), singleLine = true, textStyle = TextStyle(fontSize = 14.sp))
+        TextField(value = title, onValueChange = { title = it }, placeholder = { Text("일정 제목", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth().height(80.dp), colors = TextFieldDefaults.colors(focusedContainerColor = inputBackgroundColor, unfocusedContainerColor = inputBackgroundColor, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent), shape = RoundedCornerShape(8.dp), singleLine = true, textStyle = TextStyle(fontSize = 14.sp))
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -285,7 +285,7 @@ fun AddOrEditEventSheet(
                 value = location,
                 onValueChange = {},
                 placeholder = { Text("터치하여 장소 검색", fontSize = 12.sp) },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
+                modifier = Modifier.fillMaxWidth().height(80.dp),
                 colors = TextFieldDefaults.colors(focusedContainerColor = inputBackgroundColor, unfocusedContainerColor = inputBackgroundColor, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledContainerColor = inputBackgroundColor),
                 shape = RoundedCornerShape(8.dp),
                 singleLine = true,
