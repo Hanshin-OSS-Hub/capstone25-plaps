@@ -217,9 +217,9 @@ fun MonthViewHeader(searchText: String, onSearchChange: (String) -> Unit, onAddE
         TextField(
             value = searchText,
             onValueChange = onSearchChange,
-            placeholder = { Text("날짜 검색 (예: 11/11)", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp) },
+            placeholder = { Text("날짜 검색 (예: 11/11)", color = Color.White.copy(alpha = 0.7f), fontSize = 20.sp) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.White) },
-            modifier = Modifier.fillMaxWidth().height(50.dp),
+            modifier = Modifier.fillMaxWidth().height(100.dp),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = Color.White.copy(alpha = 0.2f),
                 unfocusedContainerColor = Color.White.copy(alpha = 0.2f),

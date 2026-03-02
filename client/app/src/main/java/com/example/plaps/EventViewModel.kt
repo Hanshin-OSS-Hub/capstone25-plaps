@@ -1,42 +1,59 @@
 package com.example.plaps
 
+import com.example.plaps.data.Achievement // 👈 추가
 import com.example.plaps.data.Event
-import com.example.plaps.data.EventRepository // 👈 새로 만든 Repository import
+import com.example.plaps.data.EventRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel // 👈 Hilt ViewModel Import
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject // 👈 주입을 요청하는 Inject Import
+import javax.inject.Inject
 
-// [1] Hilt ViewModel: Hilt가 이 ViewModel을 만들도록 지시합니다.
 @HiltViewModel
-// [2] Repository 주입: Hilt가 EventRepository 객체를 만들어서 자동으로 넣어줍니다.
 class EventViewModel @Inject constructor(
-    private val repository: EventRepository // 👈 DB 대신 Repository를 주입받습니다.
-) : ViewModel() { // 👈 AndroidViewModel 대신 일반 ViewModel을 상속합니다.
+    private val repository: EventRepository
+) : ViewModel() {
 
-    // DB의 모든 이벤트를 관찰 (Flow -> StateFlow 변환)
-    val allEvents: StateFlow<List<Event>> = repository.getAllEvents() // 👈 Repository에서 데이터를 가져옵니다.
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
-
-    // 이벤트 추가/수정
-    fun saveEvent(event: Event) {
+    // 👇 앱이 켜질 때(=ViewModel 생성 시) 기본 업적을 DB에 넣어줍니다.
+    init {
         viewModelScope.launch {
-            repository.saveEvent(event) // 👈 Repository에게 저장 요청
+            repository.initDefaultAchievements()
         }
     }
 
-    // 이벤트 삭제
+    val allEvents: StateFlow<List<Event>> = repository.getAllEvents()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allAchievements: StateFlow<List<Achievement>> = repository.getAllAchievements()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // 👇 일정 저장 & 첫 등록 업적 처리
+    fun saveEvent(event: Event) {
+        viewModelScope.launch {
+            repository.saveEvent(event)
+            // 첫 일정을 등록했으므로 1번 업적 체크
+            repository.checkFirstEventAchievement()
+
+            // 만약 저장/수정하면서 완료 상태(isCompleted)가 바뀌었다면 진척도도 업데이트
+            updateAchievementProgress()
+        }
+    }
+
     fun deleteEvent(event: Event) {
         viewModelScope.launch {
-            repository.deleteEvent(event) // 👈 Repository에게 삭제 요청
+            repository.deleteEvent(event)
+            // 일정이 삭제되어 완료 개수가 줄어들 수 있으니 진척도 재계산
+            updateAchievementProgress()
         }
+    }
+
+    // 👇 현재 DB에 있는 '완료된 일정' 개수를 세서 진척도를 업데이트하는 함수
+    private suspend fun updateAchievementProgress() {
+        // allEvents의 최신 리스트에서 isCompleted가 true인 것의 개수를 구함
+        val completedCount = allEvents.value.count { it.isCompleted }
+        repository.updateCompletionAchievements(completedCount)
     }
 }

@@ -88,7 +88,10 @@ fun MainAppScreen(viewModel: EventViewModel = hiltViewModel()) {
                 )
                 // 아직 구현되지 않은 화면은 PlaceholderScreen으로 대체
                 BottomNavItem.Map -> PlaceholderScreen("지도 화면")
-                BottomNavItem.MyPage -> PlaceholderScreen("마이페이지")
+                BottomNavItem.MyPage -> {
+                    val achievements by viewModel.allAchievements.collectAsStateWithLifecycle()
+                    MyPageScreen(events = events, achievements = achievements)
+                }
             }
         }
     }

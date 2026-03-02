@@ -14,4 +14,7 @@ interface AchievementDao {
     // 특정 업적 정보 가져오기
     @Query("SELECT * FROM achievements WHERE id = :id")
     suspend fun getAchievementById(id: String): Achievement?
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAchievements(achievements: List<Achievement>)
 }
