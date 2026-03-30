@@ -31,3 +31,11 @@ google-services.json
 
 # Android Profiling
 *.hprof
+<<<<<<< Updated upstream
+=======
+
+# DS_Store
+.DS_Store
+
+.env
+>>>>>>> Stashed changes
