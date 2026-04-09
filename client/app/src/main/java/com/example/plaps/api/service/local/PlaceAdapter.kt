@@ -10,7 +10,6 @@ import com.example.plaps.navigation.domain.Place
 // 데이터(List<Place>)를 받아서 목록(RecyclerView)에 끼워주는 연결 장치(Adapter)
 // 리스트를 관리하고 클릭 이벤트를 처리하는 어댑터
 class PlaceAdapter(val onClick: (Place) -> Unit) : RecyclerView.Adapter<PlaceAdapter.PlaceViewHolder>() {
-
     private var placeList = listOf<Place>()
 
     // 데이터를 갱신하는 함수

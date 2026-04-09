@@ -11,7 +11,7 @@ class TransCoordRepository{
     suspend fun transWGS84toKTM (x:Double, y:Double): Document?{
         return try {
                 val response = RetrofitClient.kakaoLocalTransCoordApiService.transWGS84toKTM(
-                    apiKey = authHeader,
+                    // apiKey = authHeader,
                     x = x,
                     y = y,
                     outputCoord = "WTM" // 받고 싶은 좌표계

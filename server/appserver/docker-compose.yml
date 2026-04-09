@@ -1,0 +1,19 @@
+services:
+  auth-server:
+
+    build: .
+    
+    container_name: auth-server
+
+    volumes:
+      - ./:/app 
+    
+    env_file:
+      - ./.env
+    
+    command: uvicorn main:app --host ${UVICORN_ADDR} --port ${UVICORN_PORT} --reload
+
+    restart: always
+
+    ports:
+      - "${PORTS}"

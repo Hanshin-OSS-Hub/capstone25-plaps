@@ -1,0 +1,14 @@
+services:
+  nginx-proxy:
+    image: nginx:alpine
+
+    container_name: vml_nginx_proxy
+
+    ports:
+      - "80:80"
+
+    volumns:
+      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./logs:var/log/nginx
+      
+    restart: always

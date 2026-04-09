@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from contextlib import asynccontextmanager
 import httpx
 import os
@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
     await http_client.aclose()
     print("공용 HTTP 클라이언트 전원 오프!")
 
-'''
+
 async def get_key_from_vault() -> str:
     url = f"{VAULT_ADDR}/{SECRET_PATH}"
     headers = {
@@ -49,7 +49,7 @@ async def get_key_from_vault() -> str:
             return data["data"]["data"]["KAKAO_API_KEY"]
         except KeyError:
             raise HTTPException(status_code=500, detail="Vault 응답에서 API 키를 찾을 수 없습니다.")
-'''
+
 
 @app.get("/api/kakao/geo/transcoord")
 async def proxy_transcoord(request: Request):
@@ -65,7 +65,7 @@ async def proxy_transcoord(request: Request):
     if "output_coord" not in params:
         params["output_coord"] = "KTM"
 
-    # 2. Vault에서 키 가져오기 (hvac 배제)
+    # 2. Vault에서 키 가져오기 (hvac 배제) <= 지금은 그냥 .env에서 가져오는 중임.
     # kakao_api_key = await get_kakao_key_from_vault()
     kakao_api_key =KAKAO_API_KEY
 

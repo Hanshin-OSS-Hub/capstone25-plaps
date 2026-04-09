@@ -123,8 +123,8 @@ class LocationActivity : AppCompatActivity() {
             return
         }
 
-        val apiKey = "KakaoAK ${BuildConfig.KAKAO_REST_API_KEY}"
-        RetrofitClient.kakaoLocalApiService.searchByKeyword(apiKey, keyword)
+        // val apiKey = "KakaoAK ${BuildConfig.KAKAO_REST_API_KEY}"
+        RetrofitClient.kakaoLocalApiService.searchByKeyword(keyword)
             .enqueue(object : Callback<SearchResponse> {
                 override fun onResponse(call: Call<SearchResponse>, response: Response<SearchResponse>) {
                     if (response.isSuccessful) {

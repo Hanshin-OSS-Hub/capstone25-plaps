@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 import httpx
 import os
 
-TARGET_BASE_URL = os.getenv("TARGET_URL")
+TARGET_BASE_URL = os.getenv("TARGET_ADDR")
 
 http_client: httpx.AsyncClient | None = None
 
@@ -23,8 +23,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# 테스트 용
+@app.get("/test")
+def test_connection():
+    return {"status": "success", "received_data": "통신 보냅니다", "message": "vm2"}
+
+
 # 장소 검색 API
-@app.get("/api/search")
+@app.get("/auth/search")
 async def search_keyword(
     query: str,
     size: int = 15
@@ -42,7 +48,7 @@ async def search_keyword(
 
 
 # 좌표 변환 API
-@app.get("/api/geo")
+@app.get("/auth/geo")
 async def trans_coord(
     x: float,
     y: float,
