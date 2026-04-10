@@ -7,7 +7,7 @@ import retrofit2.http.Query
 import com.example.plaps.domain.TransCoordResponse
 
 interface TransCoordService {
-    @GET("v2/local/geo/transcoord.json")
+    @GET("/auth/geo")
     suspend fun transWGS84toKTM(
         @Header("Authorization") apiKey: String,
 

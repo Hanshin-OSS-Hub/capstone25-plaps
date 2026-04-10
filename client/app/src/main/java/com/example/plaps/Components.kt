@@ -33,6 +33,8 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
+import kotlinx.coroutines.launch
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,17 +76,39 @@ fun EventItem(event: Event, onClick: (Event) -> Unit) {
             }
             //길찾기 버튼에 데이터 전달 로직 추가
             //3. 오른쪽 길찾기 버튼 (좌표 정보가 있을 때만 표시)
+            // event.latitude, longitude가 null이 아닐 때만 버튼이 보입니다.
             if (event.latitude != null && event.longitude != null) {
                 Button(
                     onClick = {
-                        // ★ [수정 핵심] Intent에 장소 이름, 위도, 경도를 담아서 보냄
-                        val intent = Intent(context, NaviLoadActivity::class.java).apply {
-                            putExtra("DEST_NAME", event.location)
-                            putExtra("DEST_LAT", event.latitude)  // Double
-                            putExtra("DEST_LON", event.longitude) // Double
-                        }
-                        context.startActivity(intent)
-                        Toast.makeText(context, "길찾기 기능 (NaviLoadActivity) 준비 중", Toast.LENGTH_SHORT).show()
+                        // 1. 팝업창에 띄울 선택지
+                        val options = arrayOf("🚗 자동차 (카카오 내비)", "🚌 대중교통 (오디세이 테스트)")
+
+                        // 2. 다이얼로그 띄우기
+                        android.app.AlertDialog.Builder(context)
+                            .setTitle("이동 수단을 선택해 주세요")
+                            .setItems(options) { _, which ->
+                                when (which) {
+                                    0 -> {
+                                        // [자동차 선택] 기존 길안내 로직 그대로 실행!
+                                        val intent = Intent(context, NaviLoadActivity::class.java).apply {
+                                            putExtra("DEST_NAME", event.location)
+                                            putExtra("DEST_LAT", event.latitude)  // Double
+                                            putExtra("DEST_LON", event.longitude) // Double
+                                        }
+                                        context.startActivity(intent)
+                                    }
+                                    1 -> {
+                                        // 💡 [대중교통 선택] 방금 만든 TransportActivity로 화면 이동! (엄청 깔끔해졌죠?)
+                                        val intent = Intent(context, TransportActivity::class.java).apply {
+                                            putExtra("DEST_NAME", event.location)
+                                            putExtra("DEST_LAT", event.latitude)  // Double
+                                            putExtra("DEST_LON", event.longitude) // Double
+                                        }
+                                        context.startActivity(intent)
+                                    }
+                                }
+                            }
+                            .show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A80F0)),
                     shape = RoundedCornerShape(8.dp),
@@ -114,6 +138,7 @@ fun EmptyScheduleView() {
     }
 }
 
+// [추가 수정] AddOrEditEventSheet: 좌표 저장 로직 추가
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddOrEditEventSheet(
@@ -125,17 +150,19 @@ fun AddOrEditEventSheet(
 ) {
     var title by remember(existingEvent) { mutableStateOf(existingEvent?.title ?: "") }
     var location by remember(existingEvent) { mutableStateOf(existingEvent?.location ?: "") }
-
-    // 👇 중복 선언 방지를 위해 latState/lngState로 이름 변경 (상태 변수)
-    var latState by remember(existingEvent) { mutableStateOf(existingEvent?.latitude) }
-    var lngState by remember(existingEvent) { mutableStateOf(existingEvent?.longitude) }
+    // 👇 위도, 경도 변수를 remember 상태로 추가
+    var latitude by remember(existingEvent) { mutableStateOf(existingEvent?.latitude ?: 0.0) }
+    var longitude by remember(existingEvent) { mutableStateOf(existingEvent?.longitude ?: 0.0) }
 
     var description by remember(existingEvent) { mutableStateOf(existingEvent?.notes ?: "") }
     var selectedColorIndex by remember(existingEvent) { mutableStateOf(existingEvent?.colorIndex ?: 0) }
-
     // 👇 시간 관련 상태 변수 추가
     var startTime by remember(existingEvent) { mutableStateOf(existingEvent?.startTime ?: LocalTime.of(9, 0)) }
     var endTime by remember(existingEvent) { mutableStateOf(existingEvent?.endTime ?: LocalTime.of(10, 0)) }
+
+    //  좌표를 저장할 상태 변수 (기존 값 있으면 불러오고, 없으면 null)
+//    var latitude by remember(existingEvent) { mutableStateOf(existingEvent?.latitude) }
+//    var longitude by remember(existingEvent) { mutableStateOf(existingEvent?.longitude) }
 
     val colors = listOf(Color(0xFF4A80F0), Color(0xFF4CAF50), Color(0xFFF44336), Color(0xFF9C27B0), Color(0xFFE91E63))
     val inputBackgroundColor = Color(0xFFF3F4F6)
@@ -154,19 +181,18 @@ fun AddOrEditEventSheet(
                 val placeName = data.getStringExtra("result_place_name")
                 if (placeName != null) location = placeName
 
-                // 좌표 가져오기
+                // 좌표 가져오기 (LocationActivity에서 이 이름으로 보내줘야 함)
                 val lat = data.getDoubleExtra("result_lat", 0.0)
                 val lon = data.getDoubleExtra("result_lng", 0.0)
 
                 // 0.0이 아니면 상태 변수에 저장
                 if (lat != 0.0 && lon != 0.0) {
-                    latState = lat
-                    lngState = lon
+                    latitude = lat
+                    longitude = lon
                 }
             }
         }
     }
-
     // 👇 TimePickerDialog를 띄워주는 함수 정의 (시작/종료 시간 유효성 검사 포함)
     val showTimePicker = { isStartTime: Boolean ->
         val initialTime = if (isStartTime) startTime else endTime
@@ -181,7 +207,7 @@ fun AddOrEditEventSheet(
                         endTime = startTime.plusHours(1).withMinute(minute)
                     }
                 } else {
-                    // 종료 시간이 시작 시간보다 빠르거나 같다면 경고
+                    // 종료 시간이 시작 시간보다 빠르거나 같다면, 경고 메시지를 띄우고 시간을 변경하지 않음
                     if (selectedTime.isBefore(startTime) || selectedTime.equals(startTime)) {
                         Toast.makeText(context, "종료 시간이 시작 시간보다 빠르거나 같을 수 없습니다.", Toast.LENGTH_SHORT).show()
                     } else {
@@ -189,9 +215,9 @@ fun AddOrEditEventSheet(
                     }
                 }
             },
-            initialTime.hour,
-            initialTime.minute,
-            true
+            initialTime.hour, // 초기 시간 (시)
+            initialTime.minute, // 초기 시간 (분)
+            true // 24시간 형식 사용
         ).show()
     }
 
@@ -221,7 +247,7 @@ fun AddOrEditEventSheet(
         // 제목 입력
         Text("제목 *", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
         Spacer(modifier = Modifier.height(4.dp))
-        TextField(value = title, onValueChange = { title = it }, placeholder = { Text("일정 제목", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth().height(80.dp), colors = TextFieldDefaults.colors(focusedContainerColor = inputBackgroundColor, unfocusedContainerColor = inputBackgroundColor, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent), shape = RoundedCornerShape(8.dp), singleLine = true, textStyle = TextStyle(fontSize = 14.sp))
+        TextField(value = title, onValueChange = { title = it }, placeholder = { Text("일정 제목", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth().height(50.dp), colors = TextFieldDefaults.colors(focusedContainerColor = inputBackgroundColor, unfocusedContainerColor = inputBackgroundColor, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent), shape = RoundedCornerShape(8.dp), singleLine = true, textStyle = TextStyle(fontSize = 14.sp))
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -241,21 +267,22 @@ fun AddOrEditEventSheet(
                 Text("시작 시간", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(modifier = Modifier.fillMaxWidth().height(50.dp).background(inputBackgroundColor, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(startTime.format(timeFormatter), fontSize = 14.sp, color = Color.Black)
+                    Text(startTime.format(timeFormatter), fontSize = 14.sp, color = Color.Black) // 👈 상태 변수 값 표시
                     Icon(Icons.Outlined.AccessTime, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.Gray)
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))
+            // [B] 종료 시간 설정 - clickable 추가
             Column(modifier = Modifier.weight(1f).clickable { showTimePicker(false) }) {
                 Text("종료 시간", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(modifier = Modifier.fillMaxWidth().height(50.dp).background(inputBackgroundColor, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(endTime.format(timeFormatter), fontSize = 14.sp, color = Color.Black)
+                    Text(endTime.format(timeFormatter), fontSize = 14.sp, color = Color.Black) // 👈 상태 변수 값 표시
                     Icon(Icons.Outlined.AccessTime, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.Gray)
                 }
             }
         }
-
+        // 👆 시간 입력 (클릭 가능하도록 수정)
         Spacer(modifier = Modifier.height(12.dp))
 
         // 색상 선택
@@ -283,16 +310,17 @@ fun AddOrEditEventSheet(
         Box(modifier = Modifier.fillMaxWidth()) {
             TextField(
                 value = location,
-                onValueChange = {},
+                onValueChange = {}, // 입력 막음
                 placeholder = { Text("터치하여 장소 검색", fontSize = 12.sp) },
-                modifier = Modifier.fillMaxWidth().height(80.dp),
+                modifier = Modifier.fillMaxWidth().height(50.dp),
                 colors = TextFieldDefaults.colors(focusedContainerColor = inputBackgroundColor, unfocusedContainerColor = inputBackgroundColor, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledContainerColor = inputBackgroundColor),
                 shape = RoundedCornerShape(8.dp),
                 singleLine = true,
                 textStyle = TextStyle(fontSize = 14.sp),
-                readOnly = true,
+                readOnly = true, // 키보드 안 올라오게 설정
                 trailingIcon = { Icon(Icons.Default.Place, contentDescription = null, tint = Color.Gray) }
             )
+            // 투명한 클릭 영역 (LocationActivity 실행)
             Box(
                 modifier = Modifier.matchParentSize().clickable {
                     val intent = Intent(context, LocationActivity::class.java)
@@ -308,12 +336,11 @@ fun AddOrEditEventSheet(
             // [추가된 로직] 시작 시간이 종료 시간보다 늦은지 확인
             if (startTime.isAfter(endTime)) {
                 Toast.makeText(context, "종료 시간은 시작 시간보다 늦어야 합니다.", Toast.LENGTH_SHORT).show()
-                return@Button
+                return@Button // 저장을 하지 않고 함수를 빠져나갑니다.
             }
             if (title.isBlank()) {
                 Toast.makeText(context, "제목을 입력해주세요", Toast.LENGTH_SHORT).show()
             } else {
-                // [수정] 최신 Event 엔티티 구조에 맞게 저장
                 val eventToSave = Event(
                     id = existingEvent?.id ?: 0,
                     date = selectedDate,
@@ -321,13 +348,14 @@ fun AddOrEditEventSheet(
                     startTime = startTime, // 👈 수정된 상태 변수 사용
                     endTime = endTime,     // 👈 수정된 상태 변수 사용
                     location = location,
+                    // 장소 정보가 있을 때만 좌표값 저장, 없으면 0.0
+                    latitude = if (location.isNotBlank()) (latitude ?: 0.0) else 0.0,
+                    longitude = if (location.isNotBlank()) (longitude ?: 0.0) else 0.0,
                     notes = description,
                     colorIndex = selectedColorIndex,
-                    latitude = latState,   // 👈 이름 충돌 해결한 상태 변수
-                    longitude = lngState,  // 👈 이름 충돌 해결한 상태 변수
-                    isCompleted = existingEvent?.isCompleted ?: false,
-                    categoryName = existingEvent?.categoryName ?: "",
-//                    isImportant = existingEvent?.isImportant ?: false
+//                    // 받아온 좌표를 저장
+//                    latitude = latitude,
+//                    longitude = longitude
                 )
                 onSave(eventToSave)
             }

@@ -1,5 +1,6 @@
 package com.example.plaps
 
+import android.content.Intent // ★ 중요: 화면 이동 기능
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -15,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext // ★ 중요: 현재 화면 정보 가져오기
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,6 +44,9 @@ fun MainAppScreen(viewModel: EventViewModel = hiltViewModel()) {
     // DB에 데이터가 추가, 수정, 삭제 시 자동으로 events 변수가 업데이트되어 UI가 갱신
     val events by viewModel.allEvents.collectAsStateWithLifecycle()
 
+    // ★ 1. 화면 이동을 위해 context 변수를 만듭니다.
+    val context = LocalContext.current
+
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
@@ -56,7 +61,20 @@ fun MainAppScreen(viewModel: EventViewModel = hiltViewModel()) {
 
                     NavigationBarItem(
                         selected = isSelected,
-                        onClick = { currentTab = item }, // 클릭 시 현재 탭 상태 업데이트
+
+                        // ★ 2. 여기가 핵심입니다! (LocationNp로 연결함)
+                        onClick = {
+                            if (item == BottomNavItem.Map) {
+                                // '지도' 아이콘을 눌렀을 때 -> LocationNp 실행!
+                                val intent = Intent(context, LocationNp::class.java)
+                                context.startActivity(intent)
+
+                            } else {
+                                // 다른 아이콘을 눌렀을 때 -> 그냥 탭만 변경
+                                currentTab = item
+                            }
+                        },
+
                         icon = { Icon(item.icon, contentDescription = item.title) },
                         label = { Text(item.title, fontSize = 10.sp) },
                         // 선택 여부에 따른 색상 커스텀 설정
@@ -92,6 +110,7 @@ fun MainAppScreen(viewModel: EventViewModel = hiltViewModel()) {
                     val achievements by viewModel.allAchievements.collectAsStateWithLifecycle()
                     MyPageScreen(events = events, achievements = achievements)
                 }
+
             }
         }
     }

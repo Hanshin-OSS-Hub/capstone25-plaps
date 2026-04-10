@@ -37,6 +37,8 @@ android {
         // local.properties에서 REST API 키를 읽어와 BuildConfig에 추가
         buildConfigField("String", "KAKAO_REST_API_KEY", "\"${localProperties.getProperty("KAKAO_REST_API_KEY")}\"")
         buildConfigField("String", "KAKAO_NATIVE_APP_KEY", "\"${localProperties.getProperty("KAKAO_NATIVE_APP_KEY")}\"")
+        buildConfigField("String", "ODSAY_API_KEY", "\"${localProperties.getProperty("ODSAY_API_KEY")}\"")
+
     }
 
     buildTypes {
