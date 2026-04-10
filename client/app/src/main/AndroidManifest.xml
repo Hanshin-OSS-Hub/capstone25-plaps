@@ -39,5 +39,9 @@
             android:exported="true"
             android:label="@string/app_name">
         </activity>
+
+        <activity android:name=".LocationNp" />
+        <activity android:name=".TransportActivity" />
+
     </application>
 </manifest>

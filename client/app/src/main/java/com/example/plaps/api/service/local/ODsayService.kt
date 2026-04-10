@@ -7,7 +7,7 @@ import retrofit2.http.Query
 
 interface ODsayService {
     // 대중교통 길찾기 API 주소
-   @GET("/auth/pt")
+   @GET("v1/api/searchPubTransPathT")
     suspend fun getTransitPath(
         @Query("apiKey") apiKey: String, // 발급받은 ODsay API 키
         @Query("SX") startX: String,     // 출발지 경도 (Longitude)
