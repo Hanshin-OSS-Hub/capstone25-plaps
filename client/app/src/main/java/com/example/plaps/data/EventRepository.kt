@@ -5,6 +5,14 @@ import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
+// 업적 ID 상수 — 한 곳에서 관리, 추가 시 여기에만 작성
+object AchievementId {
+    const val FIRST_EVENT   = "1"  // 첫 번째 일정 등록
+    const val TWENTY_EVENTS = "2"  // 20개 완료
+    const val THIRTY_EVENTS = "3"  // 30개 완료
+    const val FIFTY_EVENTS  = "4"  // 50개 완료
+}
+
 // [1] Repository: DAO와 ViewModel 사이에서 데이터 접근을 추상화합니다.
 // @Inject constructor를 사용하여 Hilt에게 이 클래스를 만들고 주입할 수 있도록 알립니다.
 @Singleton
@@ -15,28 +23,40 @@ class EventRepository @Inject constructor(
     fun getAllEvents(): Flow<List<Event>> = eventDao.getAllEvents()
     fun getAllAchievements(): Flow<List<Achievement>> = achievementDao.getAllAchievements()
 
+    //[자동 체크 추가]: 일정을 저장할 때 첫 등록 업적을 자동으로 확인
     suspend fun saveEvent(event: Event) {
         eventDao.insertEvent(event)
+        checkFirstEventAchievement() // 저장 직후 자동 실행
     }
 
+    // [자동 체크 추가]: 일정 완료 상태를 변경할 때 업적 진척도를 자동으로 갱신
+    suspend fun toggleEventCompletion(event: Event) {
+        val updatedEvent = event.copy(isCompleted = !event.isCompleted)
+        eventDao.insertEvent(updatedEvent)
+        updateCompletionAchievements() // 상태 변경 직후 자동 실행
+    }
+
+    //  [자동 체크 추가]: 일정을 삭제한 후에도 업적 개수를 다시 계산
     suspend fun deleteEvent(event: Event) {
         eventDao.deleteEvent(event)
+        updateCompletionAchievements() // 삭제 후 자동 실행
     }
 
     // 1. 앱 초기 실행 시 기본 업적 DB에 세팅(id 지금 4개로 업적 4개만 등록된 상태임. 언제든 추가 가능)
     suspend fun initDefaultAchievements() {
         val defaultAchievements = listOf(
-            Achievement("1", "위대한 첫걸음", "첫 번째 일정을 등록했습니다", isUnlocked = false, goalValue = 1, currentValue = 0),
-            Achievement("2", "벌써 일정 20개!", "20개의 일정을 완료하세요", isUnlocked = false, goalValue = 20, currentValue = 0),
-            Achievement("3", "성실한 일정 관리", "30개의 일정을 완료하세요", isUnlocked = false, goalValue = 30, currentValue = 0),
-            Achievement("4", "일정 관리의 달인", "50개의 일정을 완료하세요", isUnlocked = false, goalValue = 50, currentValue = 0)
+            Achievement(AchievementId.FIRST_EVENT,   "위대한 첫걸음",    "첫 번째 일정을 등록했습니다", isUnlocked = false, goalValue = 1,  currentValue = 0),
+            Achievement(AchievementId.TWENTY_EVENTS, "벌써 일정 20개!",  "20개의 일정을 완료하세요",    isUnlocked = false, goalValue = 20, currentValue = 0),
+            Achievement(AchievementId.THIRTY_EVENTS, "성실한 일정 관리", "30개의 일정을 완료하세요",    isUnlocked = false, goalValue = 30, currentValue = 0),
+            Achievement(AchievementId.FIFTY_EVENTS,  "일정 관리의 달인", "50개의 일정을 완료하세요",    isUnlocked = false, goalValue = 50, currentValue = 0)
         )
         achievementDao.insertAchievements(defaultAchievements) // OnConflictStrategy.IGNORE 덕분에 중복으로 들어가지 않습니다.
     }
 
     // 2. 일정을 처음 '등록'했을 때 1번 업적 달성 처리
-    suspend fun checkFirstEventAchievement() {
-        val achievement = achievementDao.getAchievementById("1")
+    // [접근 제어 변경]: 외부에서 직접 호출하지 못하도록 private으로 숨기고 자동화
+    private suspend fun checkFirstEventAchievement() {
+        val achievement = achievementDao.getAchievementById(AchievementId.FIRST_EVENT)
         if (achievement != null && !achievement.isUnlocked) {
             achievementDao.updateAchievement(
                 achievement.copy(currentValue = 1, isUnlocked = true, unlockDate = LocalDate.now())
@@ -45,8 +65,14 @@ class EventRepository @Inject constructor(
     }
 
     // 3. 일정을 완료했을 때 2,3,4번 업적 진척도 올리기
-    suspend fun updateCompletionAchievements(completedCount: Int) {
-        val targetIds = listOf("2", "3", "4") // 완료 관련 업적 ID들
+    //[접근 제어 변경]: 외부 호출 없이 save/toggle/delete 발생 시 내부에서만 자동 실행
+    private suspend fun updateCompletionAchievements() {
+        val completedCount = eventDao.getCompletedCount() // DAO에 이미 있는 함수
+        val targetIds = listOf(
+            AchievementId.TWENTY_EVENTS,
+            AchievementId.THIRTY_EVENTS,
+            AchievementId.FIFTY_EVENTS
+        )
 
         for (id in targetIds) {
             val achievement = achievementDao.getAchievementById(id)
