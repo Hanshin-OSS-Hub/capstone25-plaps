@@ -1,24 +1,22 @@
 package com.example.plaps
 
-import android.os.Bundle
-import android.view.View
-import androidx.appcompat.app.AppCompatActivity
-import com.kakaomobility.knsdk.ui.view.KNNaviView
 import android.graphics.Color
+import android.os.Bundle
 import android.util.Log
+import android.view.View
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import com.kakaomobility.knsdk.KNSDK
 import com.kakaomobility.knsdk.KNRoutePriority
 import com.kakaomobility.knsdk.common.objects.KNError
 import com.kakaomobility.knsdk.common.objects.KNPOI
 import com.kakaomobility.knsdk.guidance.knguidance.KNGuidance
 import com.kakaomobility.knsdk.guidance.knguidance.KNGuidance_CitsGuideDelegate
-
-/* delegate import */
 import com.kakaomobility.knsdk.guidance.knguidance.KNGuidance_GuideStateDelegate
 import com.kakaomobility.knsdk.guidance.knguidance.KNGuidance_LocationGuideDelegate
 import com.kakaomobility.knsdk.guidance.knguidance.KNGuidance_RouteGuideDelegate
 import com.kakaomobility.knsdk.guidance.knguidance.KNGuidance_SafetyGuideDelegate
 import com.kakaomobility.knsdk.guidance.knguidance.KNGuidance_VoiceGuideDelegate
-
 import com.kakaomobility.knsdk.guidance.knguidance.KNGuideRouteChangeReason
 import com.kakaomobility.knsdk.guidance.knguidance.citsguide.KNGuide_Cits
 import com.kakaomobility.knsdk.guidance.knguidance.common.KNLocation
@@ -30,10 +28,15 @@ import com.kakaomobility.knsdk.guidance.knguidance.safetyguide.objects.KNSafety
 import com.kakaomobility.knsdk.guidance.knguidance.voiceguide.KNGuide_Voice
 import com.kakaomobility.knsdk.trip.kntrip.KNTrip
 import com.kakaomobility.knsdk.trip.kntrip.knroute.KNRoute
-
-/* 좌표변환 + 안내 메시지*/
-import android.widget.Toast
-import com.kakaomobility.knsdk.KNSDK
+import com.kakaomobility.knsdk.ui.view.KNNaviView
+// 1번 (하단 여백 밀어올리기) 관련 import
+import android.view.ViewGroup
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updateLayoutParams
+// 2번 (안내종료 버튼) 관련 import
+import com.kakaomobility.knsdk.ui.view.KNNaviView_GuideStateDelegate
+import com.kakaomobility.knsdk.guidance.knguidance.KNGuideState
 
 class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuidance_LocationGuideDelegate, KNGuidance_RouteGuideDelegate,
     KNGuidance_SafetyGuideDelegate, KNGuidance_VoiceGuideDelegate, KNGuidance_CitsGuideDelegate {
@@ -46,48 +49,90 @@ class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuida
 
         naviView = findViewById(R.id.navi_view)
 
+        naviView.guideStateDelegate = object : KNNaviView_GuideStateDelegate {
+
+            // 파란색 '안내종료' 버튼을 눌렀을 때 작동하는 곳
+            override fun naviViewGuideEnded() {
+                finish()
+            }
+
+            // 길안내 상태가 바뀔 때 호출되는 곳 (당장 안 쓰니 비워둡니다)
+            override fun naviViewGuideState(state: KNGuideState) {
+                //
+            }
+        }
+
         window?.apply {
             statusBarColor = Color.TRANSPARENT
             decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
         }
 
+        // 시스템 하단 내비게이션 바 높이만큼 naviView의 하단 여백 추가
+        ViewCompat.setOnApplyWindowInsetsListener(naviView) { view, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                bottomMargin = systemBars.bottom
+            }
+            insets
+        }
+
         requestRoute()
     }
+
     /**
      * 주행 경로를 요청합니다.
+     * 수정됨: SDK GPS가 없으면 Intent로 받은 출발지를 사용하도록 변경
      */
     fun requestRoute() {
-        // GPS가 없을 때 그냥 리턴하지 않고, 화면을 종료
-        val gpsData = GlobalApplication.knsdk.sharedGpsManager()?.recentGpsData
-        val pos = gpsData?.pos ?: run {
-            Toast.makeText(this, "GPS 신호를 잡을 수 없습니다.", Toast.LENGTH_SHORT).show()
-            finish()
-            return
-        }
-        // 이전 화면에서 넘겨준 목적지 정보(이름, 위도, 경도)를 받음
-
+        // 1. 목적지 정보 받기
         val destName = intent.getStringExtra("DEST_NAME") ?: "목적지"
         val destLat = intent.getDoubleExtra("DEST_LAT", 0.0)
         val destLon = intent.getDoubleExtra("DEST_LON", 0.0)
 
         if (destLat == 0.0 || destLon == 0.0) {
-            Toast.makeText(this, "등록된 위치 정보가 없어 안내할 수 없습니다.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "목적지 정보가 없습니다.", Toast.LENGTH_LONG).show()
             finish()
             return
         }
 
-        // 좌표 변환 (WGS84 -> KATEC)
-        val katec = KNSDK.convertWGS84ToKATEC(destLon, destLat)
+        // 2. 출발지(내 위치) 결정하기
+        val gpsData = GlobalApplication.knsdk.sharedGpsManager()?.recentGpsData
+        var startX = 0
+        var startY = 0
 
-        // 변환된 좌표를 정수(Int)로 변환(에러 방지)
+        if (gpsData?.pos != null) {
+            // SDK가 GPS를 잡고 있으면 그걸 사용
+            startX = gpsData.pos.x.toInt()
+            startY = gpsData.pos.y.toInt()
+            Log.d("NAVI", "SDK GPS 사용: $startX, $startY")
+        } else {
+            // SDK가 모르면(null), 아까 검색화면에서 넘겨준 좌표를 사용
+            val intentStartLat = intent.getDoubleExtra("START_LAT", 0.0)
+            val intentStartLon = intent.getDoubleExtra("START_LON", 0.0)
+
+            if (intentStartLat != 0.0) {
+                // 받은 좌표(WGS84)를 카카오 좌표(KATEC)로 변환
+                val startKatec = KNSDK.convertWGS84ToKATEC(intentStartLon, intentStartLat)
+                startX = startKatec.x.toInt()
+                startY = startKatec.y.toInt()
+                Log.d("NAVI", "Intent 출발지 사용: $startX, $startY")
+            } else {
+                // 둘 다 없으면 진짜 못 찾음 -> 종료
+                Toast.makeText(this, "GPS 신호를 잡을 수 없습니다.", Toast.LENGTH_SHORT).show()
+                finish()
+                return
+            }
+        }
+
+        // 3. 목적지 좌표 변환 (WGS84 -> KATEC)
+        val katec = KNSDK.convertWGS84ToKATEC(destLon, destLat)
         val goalX = katec.x.toInt()
         val goalY = katec.y.toInt()
 
-        Log.d("NAVI", "경로 요청: $destName ($destLat, $destLon) -> KATEC($goalX, $goalY)")
+        Log.d("NAVI", "경로 요청: $destName -> ($goalX, $goalY)")
 
-
-        // pos.x, pos.y도 .toInt()를 붙여서 안전하게 넣습니다.
-        val startPoi = KNPOI("현위치", pos.x.toInt(), pos.y.toInt(), "현위치")
+        // 4. 길안내 요청
+        val startPoi = KNPOI("현위치", startX, startY, "현위치")
         val goalPoi = KNPOI(destName, goalX, goalY, destName)
 
         GlobalApplication.knsdk.makeTripWithStart(
@@ -98,9 +143,8 @@ class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuida
             if (aError == null && aTrip != null) {
                 runOnUiThread { startGuide(aTrip) }
             } else {
-                // 경로 탐색 실패 시 사용자에게 Toast 알림 표시
                 runOnUiThread {
-                    Toast.makeText(this, "경로 요청 실패: ${aError?.code}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "경로 요청 실패: ${aError?.code} / ${aError?.msg}", Toast.LENGTH_SHORT).show()
                     finish()
                 }
             }
@@ -109,14 +153,13 @@ class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuida
 
     fun startGuide(trip: KNTrip?) {
         GlobalApplication.knsdk.sharedGuidance()?.apply {
-            // guidance delegate 등록
             guideStateDelegate = this@NaviActivity
             locationGuideDelegate = this@NaviActivity
             routeGuideDelegate = this@NaviActivity
             safetyGuideDelegate = this@NaviActivity
             voiceGuideDelegate = this@NaviActivity
             citsGuideDelegate = this@NaviActivity
-            // trip의 startWithTrip으로 안내를 진짜로 시작함.
+
             startWithTrip(
                 aTrip = trip,
                 aPriority = KNRoutePriority.KNRoutePriority_Recommand,
@@ -132,7 +175,7 @@ class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuida
         }
     }
 
-    // --- Delegate 메서드들 (유지) ---
+    // Delegate 메서드들
     override fun guidanceCheckingRouteChange(aGuidance: KNGuidance) {
         naviView.guidanceCheckingRouteChange(aGuidance)
     }
@@ -200,4 +243,11 @@ class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuida
     override fun didUpdateCitsGuide(aGuidance: KNGuidance, aCitsGuide: KNGuide_Cits) {
         naviView.didUpdateCitsGuide(aGuidance, aCitsGuide)
     }
+
+    // 뒤로가기 누르거나 앱 껐을 때 백그라운드 안내 꼬이는 거 막아주는 안전장치
+    override fun onDestroy() {
+        super.onDestroy()
+        GlobalApplication.knsdk.sharedGuidance()?.stop()
+    }
 }
+

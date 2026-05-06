@@ -1,5 +1,7 @@
 package com.example.plaps
 
+import android.content.Intent // 화면 이동 기능
+import androidx.compose.ui.platform.LocalContext // 현재 화면 정보 가져오기
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -35,6 +37,9 @@ fun MainAppScreen(viewModel: EventViewModel = hiltViewModel()) {
     var currentTab by remember { mutableStateOf(BottomNavItem.Home) }
     val events by viewModel.allEvents.collectAsStateWithLifecycle()
 
+    //화면 이동을 위한 context 변수
+    val context = LocalContext.current
+
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
@@ -50,7 +55,20 @@ fun MainAppScreen(viewModel: EventViewModel = hiltViewModel()) {
 
                     NavigationBarItem(
                         selected = isSelected,
-                        onClick = { currentTab = item },
+
+                        // 2. 클릭 시 LocationNp로 연결
+                        onClick = {
+                            if (item == BottomNavItem.Map) {
+                                // 하단 '지도' 아이콘 -> LocationNp 실행
+                                val intent = Intent(context, LocationNp::class.java)
+                                context.startActivity(intent)
+
+                            } else {
+                                // 다른 아이콘을 눌렀을 때 -> 그냥 탭만 변경
+                                currentTab = item
+                            }
+                        },
+
                         icon = { Icon(item.icon, contentDescription = item.title) },
                         label = { Text(item.title, fontSize = 10.sp) },
                         colors = NavigationBarItemDefaults.colors(

@@ -50,9 +50,11 @@ fun EventItem(event: Event, onClick: (Event) -> Unit) {
         onClick = { onClick(event) }
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            // 1. 왼쪽 색상 원
             Box(modifier = Modifier.padding(top = 4.dp).size(10.dp).clip(CircleShape).background(eventColor))
             Spacer(modifier = Modifier.width(12.dp))
 
+            // 2. 가운데 텍스트 영역
             Column(modifier = Modifier.weight(1f)) {
                 Text(event.title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(modifier = Modifier.height(8.dp))
@@ -70,15 +72,39 @@ fun EventItem(event: Event, onClick: (Event) -> Unit) {
                     }
                 }
             }
+            //길찾기 버튼 (좌표 정보가 있을 때만 표시) null이 아닐 때만 버튼이 보임
             if (event.latitude != null && event.longitude != null) {
                 Button(
                     onClick = {
-                        val intent = Intent(context, NaviLoadActivity::class.java).apply {
-                            putExtra("DEST_NAME", event.location)
-                            putExtra("DEST_LAT", event.latitude)
-                            putExtra("DEST_LON", event.longitude)
-                        }
-                        context.startActivity(intent)
+                        // 1. 팝업창에 띄울 선택지
+                        val options = arrayOf("🚗 자동차 (카카오 내비)", "🚌 대중교통 (오디세이)")
+
+                        // 2. 다이얼로그 띄우기
+                        android.app.AlertDialog.Builder(context)
+                            .setTitle("이동 수단을 선택해 주세요")
+                            .setItems(options) { _, which ->
+                                when (which) {
+                                    0 -> {
+                                        // [자동차 선택시] 기존 길안내 로직
+                                        val intent = Intent(context, NaviLoadActivity::class.java).apply {
+                                            putExtra("DEST_NAME", event.location)
+                                            putExtra("DEST_LAT", event.latitude)  // Double
+                                            putExtra("DEST_LON", event.longitude) // Double
+                                        }
+                                        context.startActivity(intent)
+                                    }
+                                    1 -> {
+                                        // 💡 [대중교통 선택시] TransportActivity로 화면 이동
+                                        val intent = Intent(context, TransportActivity::class.java).apply {
+                                            putExtra("DEST_NAME", event.location)
+                                            putExtra("DEST_LAT", event.latitude)  // Double
+                                            putExtra("DEST_LON", event.longitude) // Double
+                                        }
+                                        context.startActivity(intent)
+                                    }
+                                }
+                            }
+                            .show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     shape = RoundedCornerShape(8.dp),
@@ -136,12 +162,27 @@ fun AddOrEditEventSheet(
     val isEditMode = existingEvent != null
     val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
 
-    val locationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+    // 위치 검색 결과를 받는 Launcher (LocationActivity에서 결과 받아오기)
+    val locationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val data = result.data ?: return@rememberLauncherForActivityResult
-            location = data.getStringExtra("result_place_name") ?: ""
-            latState = data.getDoubleExtra("result_lat", 0.0).takeIf { it != 0.0 }
-            lngState = data.getDoubleExtra("result_lng", 0.0).takeIf { it != 0.0 }
+            if (data != null) {
+                // 장소 이름 가져오기
+                val placeName = data.getStringExtra("result_place_name")
+                if (placeName != null) location = placeName
+
+                // 좌표 가져오기
+                val lat = data.getDoubleExtra("result_lat", 0.0)
+                val lon = data.getDoubleExtra("result_lng", 0.0)
+
+                // 0.0이 아니면 상태 변수에 저장
+                if (lat != 0.0 && lon != 0.0) {
+                    latState  = lat
+                    lngState = lon
+                }
+            }
         }
     }
 
