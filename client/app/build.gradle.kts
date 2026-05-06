@@ -65,6 +65,7 @@ android {
 
 
 dependencies {
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
     // ✨ [Hilt 라이브러리 추가] ✨
     implementation("com.google.dagger:hilt-android:2.51.1")
     ksp("com.google.dagger:hilt-compiler:2.51.1") // KSP 사용 시
