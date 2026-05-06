@@ -24,7 +24,8 @@ data class PathInfo(
     @SerializedName("totalTime") val totalTime: Int, // 총 소요 시간 (분)
     @SerializedName("payment") val payment: Int,     // 총 요금 (원)
     @SerializedName("firstStartStation") val firstStartStation: String, // 첫 승차역
-    @SerializedName("lastEndStation") val lastEndStation: String        // 최종 하차역
+    @SerializedName("lastEndStation") val lastEndStation: String,       // 최종 하차역
+    @SerializedName("mapObj") val mapObj: String? //지도에 경로(선)를 그리기 위해 추가한 mapObj
 )
 
 // 구간별 상세 정보 (사진 하단 세부 리스트 부분)
@@ -45,4 +46,29 @@ data class LaneItem(
     @SerializedName("name") val name: String?,         // 지하철 호선 이름
     @SerializedName("busNo") val busNo: String?,       //  버스 번호
     @SerializedName("subwayCode") val subwayCode: Int?
+)
+//------------------------------------------
+
+// 대중교통 경로 그래픽 데이터(좌표)를 담을 새로운 바구니들
+data class ODsayLaneResponse(
+    @SerializedName("result") val result: LaneResult?,
+    @SerializedName("error") val error: com.google.gson.JsonElement?    // 에러 찾는 용도
+)
+
+data class LaneResult(
+    @SerializedName("lane") val lane: List<LaneDetail>? // 환승을 포함한 대중교통 노선들의 리스트 (예: 1번 버스 노선, 2번 지하철 노선)
+)
+
+data class LaneDetail(
+    @SerializedName("class") val trafficClass: Int, // 1: 버스, 2: 지하철
+    @SerializedName("section") val section: List<LaneSection>? // 노선이 실제로 이동하는 구간들
+)
+
+data class LaneSection(
+    @SerializedName("graphPos") val graphPos: List<GraphPos>? // 선을 그리기 위한 점(좌표)들의 리스트
+)
+
+data class GraphPos(
+    @SerializedName("x") val x: Double, // 경도
+    @SerializedName("y") val y: Double  // 위도
 )

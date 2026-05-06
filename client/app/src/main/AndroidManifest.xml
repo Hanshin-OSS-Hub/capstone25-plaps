@@ -42,6 +42,7 @@
 
         <activity android:name=".LocationNp" />
         <activity android:name=".TransportActivity" />
+        <activity android:name=".TransPathActivity" />
 
     </application>
 </manifest>

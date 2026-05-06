@@ -1,6 +1,7 @@
 package com.example.plaps.api.service.local
 
 import com.example.plaps.data.ODsayResponse
+import com.example.plaps.data.ODsayLaneResponse
 import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Query
@@ -15,4 +16,13 @@ interface ODsayService {
         @Query("EX") endX: String,       // 도착지 경도
         @Query("EY") endY: String        // 도착지 위도
     ): Response<ODsayResponse>
+
+    // 대중교통 경로 안내
+    @GET("v1/api/loadLane")
+    suspend fun getLoadLane(
+        @Query("apiKey") apiKey: String,       // 여기도 동일하게 키 필요
+        @Query(value = "mapObject", encoded = true) mapObject: String // 앞서 받은 교환권 번호
+    ): Response<ODsayLaneResponse>
 }
+
+

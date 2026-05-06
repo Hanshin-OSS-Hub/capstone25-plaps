@@ -29,6 +29,14 @@ import com.kakaomobility.knsdk.guidance.knguidance.voiceguide.KNGuide_Voice
 import com.kakaomobility.knsdk.trip.kntrip.KNTrip
 import com.kakaomobility.knsdk.trip.kntrip.knroute.KNRoute
 import com.kakaomobility.knsdk.ui.view.KNNaviView
+// 1번 (하단 여백 밀어올리기) 관련 import
+import android.view.ViewGroup
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updateLayoutParams
+// 2번 (안내종료 버튼) 관련 import
+import com.kakaomobility.knsdk.ui.view.KNNaviView_GuideStateDelegate
+import com.kakaomobility.knsdk.guidance.knguidance.KNGuideState
 
 class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuidance_LocationGuideDelegate, KNGuidance_RouteGuideDelegate,
     KNGuidance_SafetyGuideDelegate, KNGuidance_VoiceGuideDelegate, KNGuidance_CitsGuideDelegate {
@@ -41,9 +49,31 @@ class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuida
 
         naviView = findViewById(R.id.navi_view)
 
+        naviView.guideStateDelegate = object : KNNaviView_GuideStateDelegate {
+
+            // 파란색 '안내종료' 버튼을 눌렀을 때 작동하는 곳
+            override fun naviViewGuideEnded() {
+                finish()
+            }
+
+            // 길안내 상태가 바뀔 때 호출되는 곳 (당장 안 쓰니 비워둡니다)
+            override fun naviViewGuideState(state: KNGuideState) {
+                //
+            }
+        }
+
         window?.apply {
             statusBarColor = Color.TRANSPARENT
             decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+        }
+
+        // 시스템 하단 내비게이션 바 높이만큼 naviView의 하단 여백 추가
+        ViewCompat.setOnApplyWindowInsetsListener(naviView) { view, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                bottomMargin = systemBars.bottom
+            }
+            insets
         }
 
         requestRoute()
@@ -66,19 +96,17 @@ class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuida
         }
 
         // 2. 출발지(내 위치) 결정하기
-        // 일단 카카오 SDK에게 물어봅니다.
         val gpsData = GlobalApplication.knsdk.sharedGpsManager()?.recentGpsData
-
         var startX = 0
         var startY = 0
 
         if (gpsData?.pos != null) {
-            // [A] SDK가 GPS를 잡고 있으면 그걸 씁니다.
+            // SDK가 GPS를 잡고 있으면 그걸 사용
             startX = gpsData.pos.x.toInt()
             startY = gpsData.pos.y.toInt()
             Log.d("NAVI", "SDK GPS 사용: $startX, $startY")
         } else {
-            // [B] SDK가 모르면(null), 아까 검색화면에서 넘겨준 좌표를 씁니다!
+            // SDK가 모르면(null), 아까 검색화면에서 넘겨준 좌표를 사용
             val intentStartLat = intent.getDoubleExtra("START_LAT", 0.0)
             val intentStartLon = intent.getDoubleExtra("START_LON", 0.0)
 
@@ -147,7 +175,7 @@ class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuida
         }
     }
 
-    // --- Delegate 메서드들 (기존 유지) ---
+    // Delegate 메서드들
     override fun guidanceCheckingRouteChange(aGuidance: KNGuidance) {
         naviView.guidanceCheckingRouteChange(aGuidance)
     }
@@ -215,4 +243,11 @@ class NaviActivity : AppCompatActivity(), KNGuidance_GuideStateDelegate, KNGuida
     override fun didUpdateCitsGuide(aGuidance: KNGuidance, aCitsGuide: KNGuide_Cits) {
         naviView.didUpdateCitsGuide(aGuidance, aCitsGuide)
     }
+
+    // 뒤로가기 누르거나 앱 껐을 때 백그라운드 안내 꼬이는 거 막아주는 안전장치
+    override fun onDestroy() {
+        super.onDestroy()
+        GlobalApplication.knsdk.sharedGuidance()?.stop()
+    }
 }
+
