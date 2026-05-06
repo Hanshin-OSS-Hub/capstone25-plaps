@@ -38,7 +38,8 @@ android {
         buildConfigField("String", "KAKAO_REST_API_KEY", "\"${localProperties.getProperty("KAKAO_REST_API_KEY")}\"")
         buildConfigField("String", "KAKAO_NATIVE_APP_KEY", "\"${localProperties.getProperty("KAKAO_NATIVE_APP_KEY")}\"")
         buildConfigField("String", "ODSAY_API_KEY", "\"${localProperties.getProperty("ODSAY_API_KEY")}\"")
-
+        buildConfigField("String", "NAVER_CLIENT_ID", "\"${localProperties.getProperty("NAVER_CLIENT_ID")}\"")
+        buildConfigField("String", "NAVER_CLIENT_SECRET", "\"${localProperties.getProperty("NAVER_CLIENT_SECRET")}\"")
     }
 
     buildTypes {
@@ -67,6 +68,10 @@ android {
 
 
 dependencies {
+    // 프로필 이미지 로딩
+    implementation("io.coil-kt:coil-compose:2.6.0")
+    // 네이버 로그인 기능
+    implementation("com.navercorp.nid:oauth:5.9.1")
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     // ✨ [Hilt 라이브러리 추가] ✨
     implementation("com.google.dagger:hilt-android:2.51.1")

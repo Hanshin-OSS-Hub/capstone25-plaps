@@ -18,26 +18,39 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel // 👈 추가
-import androidx.lifecycle.compose.collectAsStateWithLifecycle // 👈 추가
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.plaps.ui.theme.PlapsTheme
-import com.example.plaps.ui.theme.ThemeViewModel // 👈 추가
+import com.example.plaps.ui.theme.ThemeViewModel
 import com.kakao.sdk.common.util.Utility
-import kotlinx.coroutines.delay
+import com.navercorp.nid.NaverIdLoginSDK
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.delay
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 🌟 [네이버 로그인 초기화]
+        NaverIdLoginSDK.initialize(
+            context = this,
+            clientId = BuildConfig.NAVER_CLIENT_ID,
+            clientSecret = BuildConfig.NAVER_CLIENT_SECRET,
+            clientName = "PLAPS"
+        )
+
         enableEdgeToEdge()
         setContent {
             val themeViewModel: ThemeViewModel = hiltViewModel()
-
             val isDarkMode by themeViewModel.isDarkMode.collectAsStateWithLifecycle()
 
+            // 🌟 로그인 상태 관리를 위한 AuthViewModel 호출
+            val authViewModel: AuthViewModel = hiltViewModel()
+
             PlapsTheme(darkTheme = isDarkMode) {
-                PlapsAppEntry()
+                // AuthViewModel을 Entry로 넘겨줍니다.
+                PlapsAppEntry(authViewModel)
             }
         }
 
@@ -48,8 +61,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun PlapsAppEntry() {
+fun PlapsAppEntry(authViewModel: AuthViewModel) {
     var isLoading by remember { mutableStateOf(true) }
+
+    // 🌟 ViewModel에서 로그인 상태 구독 (true면 로그인됨, false면 안 됨)
+    val isLoggedIn by authViewModel.isLoggedIn.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         delay(2000)
@@ -60,7 +76,15 @@ fun PlapsAppEntry() {
         if (loading) {
             SplashScreen()
         } else {
-            MainAppScreen()
+            // 🌟 로딩이 끝나면 로그인 상태에 따라 화면 분기!
+            if (isLoggedIn) {
+                // 로그인 성공 시 PLAPS 메인 화면으로
+                // MainAppScreen 안에서 마이페이지로 갈 때도 authViewModel을 넘겨주면 좋습니다.
+                MainAppScreen()
+            } else {
+                // 로그인 안 되어 있으면 로그인 화면으로
+                LoginScreen(authViewModel = authViewModel)
+            }
         }
     }
 }
