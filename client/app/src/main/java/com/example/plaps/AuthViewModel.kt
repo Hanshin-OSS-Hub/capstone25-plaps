@@ -1,6 +1,7 @@
 package com.example.plaps
 
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import com.navercorp.nid.NaverIdLoginSDK
 import com.navercorp.nid.oauth.NidOAuthLogin
@@ -10,6 +11,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.io.File
+import java.io.FileOutputStream
 import javax.inject.Inject
 
 @HiltViewModel
@@ -25,11 +28,9 @@ class AuthViewModel @Inject constructor(
     private val _userEmail = MutableStateFlow<String?>(null)
     val userEmail = _userEmail.asStateFlow()
 
-    // 닉네임 상태 관리 (기본값: 닉네임)
     private val _nickname = MutableStateFlow(prefs.getString("nickname", "닉네임") ?: "닉네임")
     val nickname = _nickname.asStateFlow()
 
-    // 프로필 사진 URI 상태 관리
     private val _profileImageUri = MutableStateFlow(prefs.getString("profile_image", null))
     val profileImageUri = _profileImageUri.asStateFlow()
 
@@ -68,27 +69,64 @@ class AuthViewModel @Inject constructor(
         NidOAuthLogin().callProfileApi(object : NidProfileCallback<NidProfileResponse> {
             override fun onSuccess(result: NidProfileResponse) {
                 _userEmail.value = result.profile?.email
+
+                val naverName = result.profile?.nickname ?: result.profile?.name
+                val savedNickname = prefs.getString("nickname", null)
+                if (savedNickname == null && naverName != null) {
+                    updateNickname(naverName)
+                }
             }
             override fun onFailure(httpStatus: Int, message: String) {}
             override fun onError(errorCode: Int, message: String) {}
         })
     }
 
-    // 닉네임 변경 저장 함수
     fun updateNickname(newName: String) {
         _nickname.value = newName
         prefs.edit().putString("nickname", newName).apply()
     }
 
-    // 프로필 사진 변경 저장 함수
+    // 사진을 앱 내부로 복사
     fun updateProfileImage(uriString: String?) {
-        _profileImageUri.value = uriString
-        prefs.edit().putString("profile_image", uriString).apply()
+        if (uriString == null) {
+            _profileImageUri.value = null
+            prefs.edit().remove("profile_image").apply()
+            return
+        }
+
+        try {
+            val uri = Uri.parse(uriString)
+            // 1. 앱 내부 저장소에 profile_image.jpg 라는 빈 파일 생성
+            val file = File(context.filesDir, "profile_image.jpg")
+
+            // 2. 갤러리 사진의 데이터를 읽어서 내부 파일로 복사 (Stream 복사)
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                FileOutputStream(file).use { outputStream ->
+                    inputStream.copyTo(outputStream)
+                }
+            }
+
+            // 3. 임시 URI 대신, 영구적인 내 앱 내부 파일 경로를 저장
+            val localPath = file.absolutePath
+            _profileImageUri.value = localPath
+            prefs.edit().putString("profile_image", localPath).apply()
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // 혹시 실패할 경우를 대비한 폴백(Fallback)
+            _profileImageUri.value = uriString
+            prefs.edit().putString("profile_image", uriString).apply()
+        }
     }
 
     fun logout() {
         NaverIdLoginSDK.logout()
         prefs.edit().clear().apply()
+
+        val file = File(context.filesDir, "profile_image.jpg")
+        if (file.exists()) {
+            file.delete()
+        }
 
         _isLoggedIn.value = false
         _userEmail.value = null
