@@ -33,11 +33,11 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EventItem(event: Event, onClick: (Event) -> Unit) {
     val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+    // 일정 고유 색상은 유지
     val colors = listOf(Color(0xFF4A80F0), Color(0xFF4CAF50), Color(0xFFF44336), Color(0xFF9C27B0), Color(0xFFE91E63))
     val eventColor = colors.getOrElse(event.colorIndex) { colors[0] }
     val context = LocalContext.current
@@ -45,7 +45,8 @@ fun EventItem(event: Event, onClick: (Event) -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        // 테마 연동: 라이트모드에선 흰색, 다크모드에선 어두운 회색
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         onClick = { onClick(event) }
     ) {
@@ -56,28 +57,26 @@ fun EventItem(event: Event, onClick: (Event) -> Unit) {
 
             // 2. 가운데 텍스트 영역
             Column(modifier = Modifier.weight(1f)) {
-                Text(event.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(event.title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Schedule, contentDescription = "시간", modifier = Modifier.size(16.dp), tint = Color.Gray)
+                    Icon(Icons.Default.Schedule, contentDescription = "시간", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("${event.startTime.format(timeFormatter)} - ${event.endTime.format(timeFormatter)}", fontSize = 14.sp, color = Color.Gray)
+                    Text("${event.startTime.format(timeFormatter)} - ${event.endTime.format(timeFormatter)}", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (event.location.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.LocationOn, contentDescription = "위치", modifier = Modifier.size(16.dp), tint = Color.Gray)
+                        Icon(Icons.Default.LocationOn, contentDescription = "위치", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(event.location, fontSize = 14.sp, color = Color.Gray)
+                        Text(event.location, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
-            //길찾기 버튼에 데이터 전달 로직 추가
-            //3. 오른쪽 길찾기 버튼 (좌표 정보가 있을 때만 표시)
+            // 3. 오른쪽 길찾기 버튼 (좌표 정보가 있을 때만 표시)
             if (event.latitude != null && event.longitude != null) {
                 Button(
                     onClick = {
-                        // ★ [수정 핵심] Intent에 장소 이름, 위도, 경도를 담아서 보냄
                         val intent = Intent(context, NaviLoadActivity::class.java).apply {
                             putExtra("DEST_NAME", event.location)
                             putExtra("DEST_LAT", event.latitude)  // Double
@@ -86,14 +85,14 @@ fun EventItem(event: Event, onClick: (Event) -> Unit) {
                         context.startActivity(intent)
                         Toast.makeText(context, "길찾기 기능 (NaviLoadActivity) 준비 중", Toast.LENGTH_SHORT).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A80F0)),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                     modifier = Modifier.height(36.dp).padding(start = 8.dp)
                 ) {
                     Text(
                         text = "길찾기",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onPrimary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -106,9 +105,9 @@ fun EventItem(event: Event, onClick: (Event) -> Unit) {
 @Composable
 fun EmptyScheduleView() {
     Column(modifier = Modifier.fillMaxSize().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(60.dp), tint = Color.Gray.copy(alpha = 0.5f))
+        Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(60.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
         Spacer(modifier = Modifier.height(16.dp))
-        Text("일정이 없습니다", fontSize = 18.sp, color = Color.Gray)
+        Text("일정이 없습니다", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(8.dp))
         Text("새 일정을 추가해보세요", fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
     }
@@ -126,39 +125,34 @@ fun AddOrEditEventSheet(
     var title by remember(existingEvent) { mutableStateOf(existingEvent?.title ?: "") }
     var location by remember(existingEvent) { mutableStateOf(existingEvent?.location ?: "") }
 
-    // 👇 중복 선언 방지를 위해 latState/lngState로 이름 변경 (상태 변수)
     var latState by remember(existingEvent) { mutableStateOf(existingEvent?.latitude) }
     var lngState by remember(existingEvent) { mutableStateOf(existingEvent?.longitude) }
 
     var description by remember(existingEvent) { mutableStateOf(existingEvent?.notes ?: "") }
     var selectedColorIndex by remember(existingEvent) { mutableStateOf(existingEvent?.colorIndex ?: 0) }
 
-    // 👇 시간 관련 상태 변수 추가
     var startTime by remember(existingEvent) { mutableStateOf(existingEvent?.startTime ?: LocalTime.of(9, 0)) }
     var endTime by remember(existingEvent) { mutableStateOf(existingEvent?.endTime ?: LocalTime.of(10, 0)) }
 
     val colors = listOf(Color(0xFF4A80F0), Color(0xFF4CAF50), Color(0xFFF44336), Color(0xFF9C27B0), Color(0xFFE91E63))
-    val inputBackgroundColor = Color(0xFFF3F4F6)
+    // 입력창 배경 테마 연동
+    val inputBackgroundColor = MaterialTheme.colorScheme.surfaceVariant
     val context = LocalContext.current
     val isEditMode = existingEvent != null
     val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
 
-    // 위치 검색 결과를 받는 Launcher (LocationActivity에서 결과 받아오기)
     val locationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val data = result.data
             if (data != null) {
-                // 장소 이름 가져오기
                 val placeName = data.getStringExtra("result_place_name")
                 if (placeName != null) location = placeName
 
-                // 좌표 가져오기
                 val lat = data.getDoubleExtra("result_lat", 0.0)
                 val lon = data.getDoubleExtra("result_lng", 0.0)
 
-                // 0.0이 아니면 상태 변수에 저장
                 if (lat != 0.0 && lon != 0.0) {
                     latState = lat
                     lngState = lon
@@ -167,7 +161,6 @@ fun AddOrEditEventSheet(
         }
     }
 
-    // 👇 TimePickerDialog를 띄워주는 함수 정의 (시작/종료 시간 유효성 검사 포함)
     val showTimePicker = { isStartTime: Boolean ->
         val initialTime = if (isStartTime) startTime else endTime
         TimePickerDialog(
@@ -176,12 +169,10 @@ fun AddOrEditEventSheet(
                 val selectedTime = LocalTime.of(hour, minute)
                 if (isStartTime) {
                     startTime = selectedTime
-                    // 시작 시간이 종료 시간보다 늦다면, 종료 시간도 1시간 뒤로 조정
                     if (startTime.isAfter(endTime) || startTime.equals(endTime)) {
                         endTime = startTime.plusHours(1).withMinute(minute)
                     }
                 } else {
-                    // 종료 시간이 시작 시간보다 빠르거나 같다면 경고
                     if (selectedTime.isBefore(startTime) || selectedTime.equals(startTime)) {
                         Toast.makeText(context, "종료 시간이 시작 시간보다 빠르거나 같을 수 없습니다.", Toast.LENGTH_SHORT).show()
                     } else {
@@ -198,60 +189,77 @@ fun AddOrEditEventSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface) // 시트 배경 테마
             .padding(horizontal = 20.dp, vertical = 16.dp)
             .verticalScroll(rememberScrollState())
             .imePadding()
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(if (isEditMode) "일정 수정" else "새 일정 추가", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(if (isEditMode) "일정 수정" else "새 일정 추가", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             Row {
                 if (isEditMode) {
                     IconButton(onClick = { onDelete(existingEvent!!) }, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Default.Delete, contentDescription = "삭제", tint = Color.Red)
+                        Icon(Icons.Default.Delete, contentDescription = "삭제", tint = MaterialTheme.colorScheme.error)
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                 }
                 IconButton(onClick = onClose, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "닫기")
+                    Icon(Icons.Default.Close, contentDescription = "닫기", tint = MaterialTheme.colorScheme.onSurface)
                 }
             }
         }
         Spacer(modifier = Modifier.height(20.dp))
 
         // 제목 입력
-        Text("제목 *", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
+        Text("제목 *", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(4.dp))
-        TextField(value = title, onValueChange = { title = it }, placeholder = { Text("일정 제목", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth().height(80.dp), colors = TextFieldDefaults.colors(focusedContainerColor = inputBackgroundColor, unfocusedContainerColor = inputBackgroundColor, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent), shape = RoundedCornerShape(8.dp), singleLine = true, textStyle = TextStyle(fontSize = 14.sp))
+        TextField(
+            value = title,
+            onValueChange = { title = it },
+            placeholder = { Text("일정 제목", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.7f)) },
+            modifier = Modifier.fillMaxWidth().height(80.dp),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = inputBackgroundColor,
+                unfocusedContainerColor = inputBackgroundColor,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+            ),
+            shape = RoundedCornerShape(8.dp),
+            singleLine = true,
+            textStyle = TextStyle(fontSize = 14.sp)
+        )
 
         Spacer(modifier = Modifier.height(12.dp))
 
         // 날짜 표시
-        Text("날짜 *", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
+        Text("날짜 *", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(4.dp))
         Row(modifier = Modifier.fillMaxWidth().height(50.dp).background(inputBackgroundColor, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(selectedDate.toString(), fontSize = 14.sp)
-            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = Color.Black, modifier = Modifier.size(20.dp))
+            Text(selectedDate.toString(), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 👇 시간 입력 (클릭 가능하도록 수정)
+        // 시간 입력
         Row(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f).clickable { showTimePicker(true) }) {
-                Text("시작 시간", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
+                Text("시작 시간", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(modifier = Modifier.fillMaxWidth().height(50.dp).background(inputBackgroundColor, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(startTime.format(timeFormatter), fontSize = 14.sp, color = Color.Black)
-                    Icon(Icons.Outlined.AccessTime, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.Gray)
+                    Text(startTime.format(timeFormatter), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.Outlined.AccessTime, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f).clickable { showTimePicker(false) }) {
-                Text("종료 시간", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
+                Text("종료 시간", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(modifier = Modifier.fillMaxWidth().height(50.dp).background(inputBackgroundColor, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(endTime.format(timeFormatter), fontSize = 14.sp, color = Color.Black)
-                    Icon(Icons.Outlined.AccessTime, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.Gray)
+                    Text(endTime.format(timeFormatter), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.Outlined.AccessTime, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -259,39 +267,66 @@ fun AddOrEditEventSheet(
         Spacer(modifier = Modifier.height(12.dp))
 
         // 색상 선택
-        Text("색상", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
+        Text("색상", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             colors.forEachIndexed { index, color ->
                 val isSelected = (selectedColorIndex == index)
-                Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color).clickable { selectedColorIndex = index }.then(if (isSelected) Modifier.border(2.dp, Color.Black.copy(alpha = 0.5f), CircleShape) else Modifier))
+                Box(
+                    modifier = Modifier.size(32.dp).clip(CircleShape).background(color).clickable { selectedColorIndex = index }
+                        .then(if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), CircleShape) else Modifier)
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
         // 설명 입력
-        Text("설명", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
+        Text("설명", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(4.dp))
-        TextField(value = description, onValueChange = { description = it }, placeholder = { Text("일정 설명", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth().height(70.dp), colors = TextFieldDefaults.colors(focusedContainerColor = inputBackgroundColor, unfocusedContainerColor = inputBackgroundColor, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent), shape = RoundedCornerShape(8.dp), textStyle = TextStyle(fontSize = 14.sp))
+        TextField(
+            value = description,
+            onValueChange = { description = it },
+            placeholder = { Text("일정 설명", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.7f)) },
+            modifier = Modifier.fillMaxWidth().height(70.dp),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = inputBackgroundColor,
+                unfocusedContainerColor = inputBackgroundColor,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+            ),
+            shape = RoundedCornerShape(8.dp),
+            textStyle = TextStyle(fontSize = 14.sp)
+        )
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 위치 입력 (LocationActivity 호출 로직 유지)
-        Text("위치", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
+        // 위치 입력
+        Text("위치", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(4.dp))
         Box(modifier = Modifier.fillMaxWidth()) {
             TextField(
                 value = location,
                 onValueChange = {},
-                placeholder = { Text("터치하여 장소 검색", fontSize = 12.sp) },
+                placeholder = { Text("터치하여 장소 검색", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.7f)) },
                 modifier = Modifier.fillMaxWidth().height(80.dp),
-                colors = TextFieldDefaults.colors(focusedContainerColor = inputBackgroundColor, unfocusedContainerColor = inputBackgroundColor, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledContainerColor = inputBackgroundColor),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = inputBackgroundColor,
+                    unfocusedContainerColor = inputBackgroundColor,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledContainerColor = inputBackgroundColor,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    disabledTextColor = MaterialTheme.colorScheme.onSurface
+                ),
                 shape = RoundedCornerShape(8.dp),
                 singleLine = true,
                 textStyle = TextStyle(fontSize = 14.sp),
                 readOnly = true,
-                trailingIcon = { Icon(Icons.Default.Place, contentDescription = null, tint = Color.Gray) }
+                trailingIcon = { Icon(Icons.Default.Place, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
             )
             Box(
                 modifier = Modifier.matchParentSize().clickable {
@@ -304,41 +339,50 @@ fun AddOrEditEventSheet(
         Spacer(modifier = Modifier.height(20.dp))
 
         // 저장 버튼
-        Button(onClick = {
-            // [추가된 로직] 시작 시간이 종료 시간보다 늦은지 확인
-            if (startTime.isAfter(endTime)) {
-                Toast.makeText(context, "종료 시간은 시작 시간보다 늦어야 합니다.", Toast.LENGTH_SHORT).show()
-                return@Button
-            }
-            if (title.isBlank()) {
-                Toast.makeText(context, "제목을 입력해주세요", Toast.LENGTH_SHORT).show()
-            } else {
-                // [수정] 최신 Event 엔티티 구조에 맞게 저장
-                val eventToSave = Event(
-                    id = existingEvent?.id ?: 0,
-                    date = selectedDate,
-                    title = title,
-                    startTime = startTime, // 👈 수정된 상태 변수 사용
-                    endTime = endTime,     // 👈 수정된 상태 변수 사용
-                    location = location,
-                    notes = description,
-                    colorIndex = selectedColorIndex,
-                    latitude = latState,   // 👈 이름 충돌 해결한 상태 변수
-                    longitude = lngState,  // 👈 이름 충돌 해결한 상태 변수
-                    isCompleted = existingEvent?.isCompleted ?: false,
-                    categoryName = existingEvent?.categoryName ?: "",
-//                    isImportant = existingEvent?.isImportant ?: false
-                )
-                onSave(eventToSave)
-            }
-        }, modifier = Modifier.fillMaxWidth().height(45.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.Black), shape = RoundedCornerShape(8.dp)) {
-            Text(if (isEditMode) "수정 완료" else "저장", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Button(
+            onClick = {
+                if (startTime.isAfter(endTime)) {
+                    Toast.makeText(context, "종료 시간은 시작 시간보다 늦어야 합니다.", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
+                if (title.isBlank()) {
+                    Toast.makeText(context, "제목을 입력해주세요", Toast.LENGTH_SHORT).show()
+                } else {
+                    val eventToSave = Event(
+                        id = existingEvent?.id ?: 0,
+                        date = selectedDate,
+                        title = title,
+                        startTime = startTime,
+                        endTime = endTime,
+                        location = location,
+                        notes = description,
+                        colorIndex = selectedColorIndex,
+                        latitude = latState,
+                        longitude = lngState,
+                        isCompleted = existingEvent?.isCompleted ?: false,
+                        categoryName = existingEvent?.categoryName ?: "",
+                    )
+                    onSave(eventToSave)
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(45.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text(if (isEditMode) "수정 완료" else "저장", color = MaterialTheme.colorScheme.onPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Button(onClick = onClose, modifier = Modifier.fillMaxWidth().height(45.dp).border(1.dp, Color.LightGray, RoundedCornerShape(8.dp)), colors = ButtonDefaults.buttonColors(containerColor = Color.White), elevation = ButtonDefaults.buttonElevation(0.dp), shape = RoundedCornerShape(8.dp)) {
-            Text("취소", color = Color.Black, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        // 취소 버튼
+        Button(
+            onClick = onClose,
+            modifier = Modifier.fillMaxWidth().height(45.dp).border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp)),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = ButtonDefaults.buttonElevation(0.dp),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text("취소", color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(modifier = Modifier.height(20.dp))
     }
