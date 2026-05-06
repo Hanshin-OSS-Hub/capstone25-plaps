@@ -9,10 +9,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -23,10 +26,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.plaps.data.Event
@@ -72,33 +78,28 @@ fun EventItem(event: Event, onClick: (Event) -> Unit) {
                     }
                 }
             }
-            //길찾기 버튼 (좌표 정보가 있을 때만 표시) null이 아닐 때만 버튼이 보임
+            //길찾기 버튼
             if (event.latitude != null && event.longitude != null) {
                 Button(
                     onClick = {
-                        // 1. 팝업창에 띄울 선택지
                         val options = arrayOf("🚗 자동차 (카카오 내비)", "🚌 대중교통 (오디세이)")
-
-                        // 2. 다이얼로그 띄우기
                         android.app.AlertDialog.Builder(context)
                             .setTitle("이동 수단을 선택해 주세요")
                             .setItems(options) { _, which ->
                                 when (which) {
                                     0 -> {
-                                        // [자동차 선택시] 기존 길안내 로직
                                         val intent = Intent(context, NaviLoadActivity::class.java).apply {
                                             putExtra("DEST_NAME", event.location)
-                                            putExtra("DEST_LAT", event.latitude)  // Double
-                                            putExtra("DEST_LON", event.longitude) // Double
+                                            putExtra("DEST_LAT", event.latitude)
+                                            putExtra("DEST_LON", event.longitude)
                                         }
                                         context.startActivity(intent)
                                     }
                                     1 -> {
-                                        // 💡 [대중교통 선택시] TransportActivity로 화면 이동
                                         val intent = Intent(context, TransportActivity::class.java).apply {
                                             putExtra("DEST_NAME", event.location)
-                                            putExtra("DEST_LAT", event.latitude)  // Double
-                                            putExtra("DEST_LON", event.longitude) // Double
+                                            putExtra("DEST_LAT", event.latitude)
+                                            putExtra("DEST_LON", event.longitude)
                                         }
                                         context.startActivity(intent)
                                     }
@@ -139,6 +140,7 @@ fun AddOrEditEventSheet(
     onDelete: (Event) -> Unit
 ) {
     val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     var title by remember(existingEvent) { mutableStateOf(existingEvent?.title ?: "") }
     var location by remember(existingEvent) { mutableStateOf(existingEvent?.location ?: "") }
@@ -162,22 +164,18 @@ fun AddOrEditEventSheet(
     val isEditMode = existingEvent != null
     val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
 
-    // 위치 검색 결과를 받는 Launcher (LocationActivity에서 결과 받아오기)
     val locationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val data = result.data ?: return@rememberLauncherForActivityResult
             if (data != null) {
-                // 장소 이름 가져오기
                 val placeName = data.getStringExtra("result_place_name")
                 if (placeName != null) location = placeName
 
-                // 좌표 가져오기
                 val lat = data.getDoubleExtra("result_lat", 0.0)
                 val lon = data.getDoubleExtra("result_lng", 0.0)
 
-                // 0.0이 아니면 상태 변수에 저장
                 if (lat != 0.0 && lon != 0.0) {
                     latState  = lat
                     lngState = lon
@@ -187,6 +185,9 @@ fun AddOrEditEventSheet(
     }
 
     val showTimePicker = { isStartTime: Boolean ->
+        keyboardController?.hide()
+        focusManager.clearFocus()
+
         val initialTime = if (isStartTime) startTime else endTime
         val dialog = TimePickerDialog(
             context,
@@ -215,8 +216,14 @@ fun AddOrEditEventSheet(
             .fillMaxWidth()
             .heightIn(max = 700.dp)
             .background(MaterialTheme.colorScheme.surface)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = {
+                    keyboardController?.hide()
+                    focusManager.clearFocus()
+                })
+            }
             .padding(horizontal = 20.dp, vertical = 16.dp)
-            .imePadding()
+        // 🌟 바깥쪽 Column에서 imePadding() 삭제! -> 버튼이 위로 밀려 올라오지 않습니다.
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(if (isEditMode) "일정 수정" else "새 일정 추가", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
@@ -235,6 +242,7 @@ fun AddOrEditEventSheet(
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        // 스크롤 가능한 영역
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -244,9 +252,17 @@ fun AddOrEditEventSheet(
             Spacer(modifier = Modifier.height(4.dp))
             TextField(
                 value = title, onValueChange = { title = it }, placeholder = { Text("일정 제목", fontSize = 12.sp) },
-                modifier = Modifier.fillMaxWidth().height(80.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 colors = TextFieldDefaults.colors(focusedContainerColor = inputBackgroundColor, unfocusedContainerColor = inputBackgroundColor, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, focusedTextColor = MaterialTheme.colorScheme.onSurface, unfocusedTextColor = MaterialTheme.colorScheme.onSurface),
-                shape = RoundedCornerShape(8.dp), singleLine = true, textStyle = TextStyle(fontSize = 14.sp)
+                shape = RoundedCornerShape(8.dp), singleLine = true, textStyle = TextStyle(fontSize = 14.sp),
+                // 🌟 제목 입력칸 엔터키를 '완료(Done)'로 변경
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        keyboardController?.hide()
+                        focusManager.clearFocus()
+                    }
+                )
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -287,8 +303,11 @@ fun AddOrEditEventSheet(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 colors.forEachIndexed { index, color ->
                     val isSelected = (selectedColorIndex == index)
-                    Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color).clickable { selectedColorIndex = index }
-                        .then(if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier))
+                    Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color).clickable {
+                        keyboardController?.hide()
+                        focusManager.clearFocus()
+                        selectedColorIndex = index
+                    }.then(if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier))
                 }
             }
 
@@ -300,7 +319,14 @@ fun AddOrEditEventSheet(
                 value = description, onValueChange = { description = it }, placeholder = { Text("일정 설명", fontSize = 12.sp) },
                 modifier = Modifier.fillMaxWidth().height(70.dp),
                 colors = TextFieldDefaults.colors(focusedContainerColor = inputBackgroundColor, unfocusedContainerColor = inputBackgroundColor, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, focusedTextColor = MaterialTheme.colorScheme.onSurface, unfocusedTextColor = MaterialTheme.colorScheme.onSurface),
-                shape = RoundedCornerShape(8.dp), textStyle = TextStyle(fontSize = 14.sp)
+                shape = RoundedCornerShape(8.dp), textStyle = TextStyle(fontSize = 14.sp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        keyboardController?.hide()
+                        focusManager.clearFocus()
+                    }
+                )
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -308,27 +334,36 @@ fun AddOrEditEventSheet(
             Text("위치", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.height(4.dp))
             Box(modifier = Modifier.fillMaxWidth().clickable {
+                keyboardController?.hide()
+                focusManager.clearFocus()
                 val intent = Intent(context, LocationActivity::class.java)
                 locationLauncher.launch(intent)
             }) {
                 TextField(
                     value = location, onValueChange = {}, placeholder = { Text("터치하여 장소 검색", fontSize = 12.sp) },
-                    modifier = Modifier.fillMaxWidth().height(80.dp), readOnly = true, enabled = false,
+                    modifier = Modifier.fillMaxWidth().height(56.dp), readOnly = true, enabled = false,
                     colors = TextFieldDefaults.colors(disabledContainerColor = inputBackgroundColor, disabledTextColor = MaterialTheme.colorScheme.onSurface, disabledIndicatorColor = Color.Transparent),
                     shape = RoundedCornerShape(8.dp), textStyle = TextStyle(fontSize = 14.sp),
                     trailingIcon = { Icon(Icons.Default.Place, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
                 )
             }
             Spacer(modifier = Modifier.height(20.dp))
+
+            // 🌟 키보드가 열렸을 때, 스크롤 가능한 영역 맨 밑에 키보드 높이만큼의 여유 공간을 줍니다.
+            // 이렇게 하면 가려진 입력칸도 스크롤해서 올릴 수 있습니다!
+            Spacer(modifier = Modifier.imePadding())
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        // 하단 버튼 영역 (키보드가 올라와도 강제로 위로 밀리지 않음)
         Column {
             Button(
                 onClick = {
                     if (title.isBlank()) {
                         Toast.makeText(context, "제목을 입력해주세요", Toast.LENGTH_SHORT).show()
                     } else {
+                        keyboardController?.hide()
                         focusManager.clearFocus()
                         onSave(Event(id = existingEvent?.id ?: 0, date = selectedDate, title = title, startTime = startTime, endTime = endTime, location = location, notes = description, colorIndex = selectedColorIndex, latitude = latState, longitude = lngState))
                         title = ""; location = ""; latState = null; lngState = null; description = ""
@@ -344,6 +379,7 @@ fun AddOrEditEventSheet(
             Spacer(modifier = Modifier.height(8.dp))
             Button(
                 onClick = {
+                    keyboardController?.hide()
                     focusManager.clearFocus()
                     onClose()
                 },
