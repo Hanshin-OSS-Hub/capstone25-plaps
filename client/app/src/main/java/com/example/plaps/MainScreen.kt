@@ -37,7 +37,7 @@ fun MainAppScreen(viewModel: EventViewModel = hiltViewModel()) {
     var currentTab by remember { mutableStateOf(BottomNavItem.Home) }
     val events by viewModel.allEvents.collectAsStateWithLifecycle()
 
-    //화면 이동을 위한 context 변수
+    //화면 이동을 위한 context 변수 (KakaoMapScreen 내부 로직에서 필요할 수 있음)
     val context = LocalContext.current
 
     Scaffold(
@@ -56,17 +56,9 @@ fun MainAppScreen(viewModel: EventViewModel = hiltViewModel()) {
                     NavigationBarItem(
                         selected = isSelected,
 
-                        // 2. 클릭 시 LocationNp로 연결
+                        // 🌟 [수정 부분] 지도를 눌러도 Intent로 튕겨 나가지 않고 탭만 변경하도록 수정!
                         onClick = {
-                            if (item == BottomNavItem.Map) {
-                                // 하단 '지도' 아이콘 -> LocationNp 실행
-                                val intent = Intent(context, LocationNp::class.java)
-                                context.startActivity(intent)
-
-                            } else {
-                                // 다른 아이콘을 눌렀을 때 -> 그냥 탭만 변경
-                                currentTab = item
-                            }
+                            currentTab = item
                         },
 
                         icon = { Icon(item.icon, contentDescription = item.title) },
@@ -95,7 +87,9 @@ fun MainAppScreen(viewModel: EventViewModel = hiltViewModel()) {
                     onSave = { viewModel.saveEvent(it) },
                     onDelete = { viewModel.deleteEvent(it) }
                 )
-                BottomNavItem.Map -> PlaceholderScreen("지도 화면")
+                // 🌟 [수정 부분] PlaceholderScreen 대신 실제 지도를 호출합니다.
+                BottomNavItem.Map -> KakaoMapScreen()
+
                 BottomNavItem.MyPage -> {
                     val achievements by viewModel.allAchievements.collectAsStateWithLifecycle()
                     MyPageScreen(events = events, achievements = achievements)

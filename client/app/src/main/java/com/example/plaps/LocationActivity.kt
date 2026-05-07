@@ -36,7 +36,6 @@ import com.example.plaps.api.service.local.PlaceAdapter
 import com.example.plaps.databinding.ActivityLocationBinding
 import com.example.plaps.api.RetrofitClient
 
-
 class LocationActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityLocationBinding
@@ -54,6 +53,7 @@ class LocationActivity : AppCompatActivity() {
             else -> Toast.makeText(this, "위치 권한이 필요합니다.", Toast.LENGTH_SHORT).show()
         }
     }
+
     // 위치 서비스를 준비하는 초기 설정 단계
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,7 +62,8 @@ class LocationActivity : AppCompatActivity() {
 
         initRecyclerView()
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-    // 카카오맵 시작
+
+        // 카카오맵 시작
         binding.mapView.start(object : MapLifeCycleCallback() {
             override fun onMapDestroy() { Log.d("KakaoMap", "onMapDestroy") }
             override fun onMapError(error: Exception) { Log.e("KakaoMap", "onMapError: ", error) }
@@ -73,17 +74,17 @@ class LocationActivity : AppCompatActivity() {
                 checkLocationPermission()
             }
         })
-    // 상단의 검색 버튼을 누르면 searchByKeyword()를 호출해 검색을 시작
+
+        // 상단의 검색 버튼을 누르면 searchByKeyword()를 호출해 검색을 시작
         binding.btnSearch.setOnClickListener {
             val keyword = binding.etSearchField.text.toString()
             searchByKeyword(keyword)
             // 검색버튼을 누를경우 키보드가 자동으로 내려가서 불러온 검색목록을 가리지않도록
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.hideSoftInputFromWindow(binding.etSearchField.windowToken, 0)
-
-
         }
-    // 키보드 엔터를 누르면 searchByKeyword()를 호출해 검색을 시작
+
+        // 키보드 엔터를 누르면 searchByKeyword()를 호출해 검색을 시작
         binding.etSearchField.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                 searchByKeyword(binding.etSearchField.text.toString())
@@ -93,7 +94,8 @@ class LocationActivity : AppCompatActivity() {
                 true
             } else false
         }
-    //fabMyLocation 버튼을 누르면 권한을 다시 체크하고 내 위치로 이동
+
+        // fabMyLocation 버튼을 누르면 권한을 다시 체크하고 내 위치로 이동
         binding.fabMyLocation.setOnClickListener { checkLocationPermission() }
     }
 
@@ -127,6 +129,7 @@ class LocationActivity : AppCompatActivity() {
             adapter = placeAdapter
         }
     }
+
     // 검색 기능
     private fun searchByKeyword(keyword: String) {
         if (keyword.isBlank()) {
@@ -143,6 +146,9 @@ class LocationActivity : AppCompatActivity() {
                         if (!places.isNullOrEmpty()) {
                             placeAdapter.submitList(places)
                             binding.recyclerView.visibility = View.VISIBLE
+
+                            // ★ [추가] 목록 가림 방지: 리사이클러뷰 높이(약 800px)만큼 지도 하단 패딩 설정
+                            kakaoMap?.setPadding(0, 0, 0, 800)
 
                             val labelManager = kakaoMap?.getLabelManager()
 
@@ -168,6 +174,7 @@ class LocationActivity : AppCompatActivity() {
                                 Log.e("KakaoMap", "비트맵 변환 실패: ic_marker가 없거나 오류")
                             }
 
+                            // 첫 번째 장소가 화면 중앙(패딩 제외 영역의 중앙)에 오도록 이동
                             val firstPlace = places[0]
                             kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(
                                 LatLng.from(firstPlace.y.toDouble(), firstPlace.x.toDouble()), 15)
@@ -176,6 +183,10 @@ class LocationActivity : AppCompatActivity() {
 
                         } else {
                             binding.recyclerView.visibility = View.GONE
+
+                            // ★ [추가] 검색 결과가 없어서 목록이 사라지면 패딩 초기화
+                            kakaoMap?.setPadding(0, 0, 0, 0)
+
                             Toast.makeText(this@LocationActivity, "검색 결과가 없습니다.", Toast.LENGTH_SHORT).show()
                         }
                     } else {
@@ -221,6 +232,10 @@ class LocationActivity : AppCompatActivity() {
             fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
                 .addOnSuccessListener { location ->
                     if (location != null) {
+
+                        // ★ [추가] 내 위치로 이동할 때는 전체 화면 기준으로 중앙에 오도록 패딩 초기화
+                        kakaoMap?.setPadding(0, 0, 0, 0)
+
                         val position = LatLng.from(location.latitude, location.longitude)
                         kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(position, 17))
 
