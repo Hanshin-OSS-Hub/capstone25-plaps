@@ -14,16 +14,17 @@ object AchievementId {
 }
 
 // [1] Repository: DAO와 ViewModel 사이에서 데이터 접근을 추상화합니다.
-// @Inject constructor를 사용하여 Hilt에게 이 클래스를 만들고 주입할 수 있도록 알립니다.
 @Singleton
 class EventRepository @Inject constructor(
     private val eventDao: EventDao,
     private val achievementDao: AchievementDao
 ) {
     fun getAllEvents(): Flow<List<Event>> = eventDao.getAllEvents()
+
+    // ✨ [개선] 앱이 켜질 때 자동으로 초기화 루틴을 타도록 설정하면 마이페이지 유실 방지 가능
     fun getAllAchievements(): Flow<List<Achievement>> = achievementDao.getAllAchievements()
 
-    //[자동 체크 추가]: 일정을 저장할 때 첫 등록 업적을 자동으로 확인
+    // [자동 체크 추가]: 일정을 저장할 때 첫 등록 업적을 자동으로 확인
     suspend fun saveEvent(event: Event) {
         eventDao.insertEvent(event)
         checkFirstEventAchievement() // 저장 직후 자동 실행
@@ -36,13 +37,13 @@ class EventRepository @Inject constructor(
         updateCompletionAchievements() // 상태 변경 직후 자동 실행
     }
 
-    //  [자동 체크 추가]: 일정을 삭제한 후에도 업적 개수를 다시 계산
+    // [자동 체크 추가]: 일정을 삭제한 후에도 업적 개수를 다시 계산
     suspend fun deleteEvent(event: Event) {
         eventDao.deleteEvent(event)
         updateCompletionAchievements() // 삭제 후 자동 실행
     }
 
-    // 1. 앱 초기 실행 시 기본 업적 DB에 세팅(id 지금 4개로 업적 4개만 등록된 상태임. 언제든 추가 가능)
+    // 1. 앱 초기 실행 시 기본 업적 DB에 세팅
     suspend fun initDefaultAchievements() {
         val defaultAchievements = listOf(
             Achievement(AchievementId.FIRST_EVENT,   "위대한 첫걸음",    "첫 번째 일정을 등록했습니다", isUnlocked = false, goalValue = 1,  currentValue = 0),
@@ -50,22 +51,24 @@ class EventRepository @Inject constructor(
             Achievement(AchievementId.THIRTY_EVENTS, "성실한 일정 관리", "30개의 일정을 완료하세요",    isUnlocked = false, goalValue = 30, currentValue = 0),
             Achievement(AchievementId.FIFTY_EVENTS,  "일정 관리의 달인", "50개의 일정을 완료하세요",    isUnlocked = false, goalValue = 50, currentValue = 0)
         )
-        achievementDao.insertAchievements(defaultAchievements) // OnConflictStrategy.IGNORE 덕분에 중복으로 들어가지 않습니다.
+        achievementDao.insertAchievements(defaultAchievements) // OnConflictStrategy.IGNORE 덕분에 중복 방지
     }
 
     // 2. 일정을 처음 '등록'했을 때 1번 업적 달성 처리
-    // [접근 제어 변경]: 외부에서 직접 호출하지 못하도록 private으로 숨기고 자동화
     private suspend fun checkFirstEventAchievement() {
         val achievement = achievementDao.getAchievementById(AchievementId.FIRST_EVENT)
         if (achievement != null && !achievement.isUnlocked) {
-            achievementDao.updateAchievement(
-                achievement.copy(currentValue = 1, isUnlocked = true, unlockDate = LocalDate.now())
-            )
+            // ✨ [정밀 검사] 실제로 등록된 총 일정 개수를 번거롭더라도 한 번 확인해서 확실할 때만 해제
+            val totalEventCount = eventDao.getTotalCount() // 💡 DAO에 전체 일정 개수 세는 함수가 있다고 가정 (혹은 getAllEvents 활용)
+            if (totalEventCount >= 1) {
+                achievementDao.updateAchievement(
+                    achievement.copy(currentValue = 1, isUnlocked = true, unlockDate = LocalDate.now())
+                )
+            }
         }
     }
 
     // 3. 일정을 완료했을 때 2,3,4번 업적 진척도 올리기
-    //[접근 제어 변경]: 외부 호출 없이 save/toggle/delete 발생 시 내부에서만 자동 실행
     private suspend fun updateCompletionAchievements() {
         val completedCount = eventDao.getCompletedCount() // DAO에 이미 있는 함수
         val targetIds = listOf(
@@ -76,15 +79,15 @@ class EventRepository @Inject constructor(
 
         for (id in targetIds) {
             val achievement = achievementDao.getAchievementById(id)
-            if (achievement != null && !achievement.isUnlocked) {
-                // 달성 여부 확인 (현재 완료 개수가 목표치 이상인가?)
+            if (achievement != null) {
+                // 🔓 이미 달성한 업적이라도, 일정을 삭제해서 완료 개수가 줄어들면 다시 잠금(false) 처리 하도록 유연성 확보
                 val isNowUnlocked = completedCount >= achievement.goalValue
 
                 achievementDao.updateAchievement(
                     achievement.copy(
                         currentValue = completedCount,
                         isUnlocked = isNowUnlocked,
-                        unlockDate = if (isNowUnlocked) LocalDate.now() else null
+                        unlockDate = if (isNowUnlocked) achievement.unlockDate ?: LocalDate.now() else null
                     )
                 )
             }

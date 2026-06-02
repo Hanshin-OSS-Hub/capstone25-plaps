@@ -27,4 +27,7 @@ interface EventDao {
     @Query("SELECT COUNT(*) FROM events WHERE isCompleted = 1")
     suspend fun getCompletedCount(): Int
 
+    // 🎯 [오류 해결 포인트] 전체 일정 개수 가져오기 (첫 등록 업적 체크용)
+    @Query("SELECT COUNT(*) FROM events")
+    suspend fun getTotalCount(): Int
 }
