@@ -36,21 +36,18 @@ fun MyPageScreen(
     events: List<Event>,
     achievements: List<Achievement>,
     themeViewModel: ThemeViewModel = hiltViewModel(),
-    authViewModel: AuthViewModel = hiltViewModel() // 🌟 로그인 정보를 가져오기 위해 ViewModel 추가
+    authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val isDarkMode by themeViewModel.isDarkMode.collectAsStateWithLifecycle()
 
-    // 🌟 AuthViewModel에서 상태 구독
     val userEmail by authViewModel.userEmail.collectAsStateWithLifecycle()
     val nickname by authViewModel.nickname.collectAsStateWithLifecycle()
     val profileImageUri by authViewModel.profileImageUri.collectAsStateWithLifecycle()
 
     val completedEventsCount = events.count { it.isCompleted }
 
-    // 🌟 닉네임 변경 다이얼로그 표시 상태
     var showNicknameDialog by remember { mutableStateOf(false) }
 
-    // 🌟 갤러리에서 사진을 선택하는 런처
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
         onResult = { uri ->
@@ -64,7 +61,6 @@ fun MyPageScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         item {
-            // 🌟 프로필 헤더에 정보 및 클릭 이벤트 전달
             ProfileHeader(
                 userEmail = userEmail,
                 nickname = nickname,
@@ -88,12 +84,15 @@ fun MyPageScreen(
             )
         }
 
-        items(achievements) { achievement ->
+        items(
+            items = achievements,
+            key = { it.title },
+            contentType = { "Achievement" }
+        ) { achievement ->
             AchievementItem(achievement)
         }
 
         item {
-            // 🌟 로그아웃 함수 전달
             SettingsSection(
                 isDarkMode = isDarkMode,
                 onDarkModeToggle = { themeViewModel.toggleDarkMode(it) },
@@ -102,7 +101,6 @@ fun MyPageScreen(
         }
     }
 
-    // 🌟 닉네임 변경 다이얼로그 구현
     if (showNicknameDialog) {
         var textState by remember { mutableStateOf(nickname) }
 
@@ -155,13 +153,12 @@ fun ProfileHeader(
         Spacer(modifier = Modifier.height(24.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
 
-            // 프로필 이미지
             Box(
                 modifier = Modifier
                     .size(72.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f))
-                    .clickable { onProfileImageClick() }, // 클릭 시 갤러리 열기
+                    .clickable { onProfileImageClick() },
                 contentAlignment = Alignment.Center
             ) {
                 if (profileImageUri != null) {
@@ -175,7 +172,6 @@ fun ProfileHeader(
                     Icon(Icons.Default.PersonOutline, contentDescription = "프로필", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(40.dp))
                 }
 
-                // 카메라 아이콘 뱃지
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -197,7 +193,6 @@ fun ProfileHeader(
             Spacer(modifier = Modifier.width(16.dp))
 
             Column {
-                // 닉네임 변경
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -211,9 +206,8 @@ fun ProfileHeader(
                 }
 
                 Spacer(modifier = Modifier.height(2.dp))
-                // 로그인된 이메일 표시
                 Text(
-                    text = userEmail ?: "계정 정보를 불러오는 중...",
+                    text = "계정: ${userEmail ?: "불러오는 중..."}", // 유저 확인용 텍스트 명확화
                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                     fontSize = 14.sp
                 )
@@ -338,7 +332,6 @@ fun SettingsSection(isDarkMode: Boolean, onDarkModeToggle: (Boolean) -> Unit, on
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
 
-                // 🌟 로그아웃 버튼 추가
                 SettingsActionItem("로그아웃", "계정에서 로그아웃 합니다", Icons.Default.Logout, Color.Red, onLogout)
             }
         }
@@ -401,7 +394,6 @@ fun SettingsArrowItem(title: String, subtitle: String, icon: ImageVector, iconTi
     }
 }
 
-// 로그아웃 버튼에 사용
 @Composable
 fun SettingsActionItem(title: String, subtitle: String, icon: ImageVector, iconTint: Color, onClick: () -> Unit) {
     Row(
@@ -416,7 +408,7 @@ fun SettingsActionItem(title: String, subtitle: String, icon: ImageVector, iconT
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = iconTint) // 글씨도 빨간색으로 강조
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = iconTint)
             Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

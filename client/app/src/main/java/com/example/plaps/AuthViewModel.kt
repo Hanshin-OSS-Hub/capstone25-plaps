@@ -3,6 +3,8 @@ package com.example.plaps
 import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.navercorp.nid.NaverIdLoginSDK
 import com.navercorp.nid.oauth.NidOAuthLogin
 import com.navercorp.nid.profile.NidProfileCallback
@@ -39,6 +41,7 @@ class AuthViewModel @Inject constructor(
     }
 
     private fun checkAutoLogin() {
+        // 네이버 자동 로그인 확인
         val naverToken = NaverIdLoginSDK.getAccessToken()
         if (naverToken != null) {
             _isLoggedIn.value = true
@@ -46,6 +49,21 @@ class AuthViewModel @Inject constructor(
             return
         }
 
+        // 구글 자동 로그인 확인
+        val googleAccount = GoogleSignIn.getLastSignedInAccount(context)
+        if (googleAccount != null) {
+            _isLoggedIn.value = true
+            _userEmail.value = googleAccount.email
+
+            // 저장된 커스텀 닉네임이 없으면 구글 프로필 이름 사용
+            val savedNickname = prefs.getString("nickname", null)
+            if (savedNickname == null && googleAccount.displayName != null) {
+                updateNickname(googleAccount.displayName!!)
+            }
+            return
+        }
+
+        // 3. 게스트 자동 로그인 확인
         val isGuest = prefs.getBoolean("is_guest", false)
         if (isGuest) {
             _isLoggedIn.value = true
@@ -54,11 +72,23 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun onLoginSuccess(guest: Boolean = false) {
+    fun onLoginSuccess(guest: Boolean = false, isGoogle: Boolean = false) {
         if (guest) {
             _userEmail.value = "게스트 계정"
             prefs.edit().putBoolean("is_guest", true).apply()
+        } else if (isGoogle) {
+            // 구글 로그인 성공 시
+            prefs.edit().putBoolean("is_guest", false).apply()
+            val googleAccount = GoogleSignIn.getLastSignedInAccount(context)
+            if (googleAccount != null) {
+                _userEmail.value = googleAccount.email
+                val savedNickname = prefs.getString("nickname", null)
+                if (savedNickname == null && googleAccount.displayName != null) {
+                    updateNickname(googleAccount.displayName!!)
+                }
+            }
         } else {
+            // 네이버 로그인 성공 시
             prefs.edit().putBoolean("is_guest", false).apply()
             fetchNaverProfile()
         }
@@ -86,7 +116,6 @@ class AuthViewModel @Inject constructor(
         prefs.edit().putString("nickname", newName).apply()
     }
 
-    // 사진을 앱 내부로 복사
     fun updateProfileImage(uriString: String?) {
         if (uriString == null) {
             _profileImageUri.value = null
@@ -96,24 +125,20 @@ class AuthViewModel @Inject constructor(
 
         try {
             val uri = Uri.parse(uriString)
-            // 1. 앱 내부 저장소에 profile_image.jpg 라는 빈 파일 생성
             val file = File(context.filesDir, "profile_image.jpg")
 
-            // 2. 갤러리 사진의 데이터를 읽어서 내부 파일로 복사 (Stream 복사)
             context.contentResolver.openInputStream(uri)?.use { inputStream ->
                 FileOutputStream(file).use { outputStream ->
                     inputStream.copyTo(outputStream)
                 }
             }
 
-            // 3. 임시 URI 대신, 영구적인 내 앱 내부 파일 경로를 저장
             val localPath = file.absolutePath
             _profileImageUri.value = localPath
             prefs.edit().putString("profile_image", localPath).apply()
 
         } catch (e: Exception) {
             e.printStackTrace()
-            // 혹시 실패할 경우를 대비한 폴백(Fallback)
             _profileImageUri.value = uriString
             prefs.edit().putString("profile_image", uriString).apply()
         }
@@ -121,6 +146,10 @@ class AuthViewModel @Inject constructor(
 
     fun logout() {
         NaverIdLoginSDK.logout()
+
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build()
+        GoogleSignIn.getClient(context, gso).signOut()
+
         prefs.edit().clear().apply()
 
         val file = File(context.filesDir, "profile_image.jpg")
