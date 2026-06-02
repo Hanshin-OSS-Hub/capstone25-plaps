@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.location.LocationManager
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -23,7 +22,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.plaps.api.RetrofitClient
+import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -31,7 +32,6 @@ class TransportActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 길찾기 버튼에서 넘겨준 목적지 정보 받기
         val destLat = intent.getDoubleExtra("DEST_LAT", 0.0)
         val destLon = intent.getDoubleExtra("DEST_LON", 0.0)
         val destName = intent.getStringExtra("DEST_NAME") ?: "목적지"
@@ -54,16 +54,13 @@ fun TransportRouteScreen(context: Context, destLat: Double, destLon: Double, des
     LaunchedEffect(Unit) {
         coroutineScope.launch(Dispatchers.IO) {
             try {
-                // 1. 내 현재 위치 가져오기
                 val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
                 val myLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
                     ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
 
-                // 2. 시작 좌표(내 위치)
                 val startX = myLocation?.longitude?.toString()
                 val startY = myLocation?.latitude?.toString()
 
-                // 3. 내 위치를 못 찾았을 때
                 if (startX == null || startY == null) {
                     withContext(Dispatchers.Main) {
                         errorMessage = "현재 위치를 찾을 수 없습니다."
@@ -72,11 +69,9 @@ fun TransportRouteScreen(context: Context, destLat: Double, destLon: Double, des
                     return@launch
                 }
 
-                // 4. 목적지 좌표
                 val endX = destLon.toString()
                 val endY = destLat.toString()
 
-                // 5. 목적지 좌표 예외 처리
                 if (endX == "0.0" || endY == "0.0") {
                     withContext(Dispatchers.Main) {
                         errorMessage = "목적지 좌표가 유효하지 않습니다."
@@ -85,26 +80,103 @@ fun TransportRouteScreen(context: Context, destLat: Double, destLon: Double, des
                     return@launch
                 }
 
-                // 6. API 호출
                 val myApiKey = BuildConfig.ODSAY_API_KEY
                 val response = RetrofitClient.odsayService.getTransitPath(
                     myApiKey, startX, startY, endX, endY
                 )
 
-                // 7. 결과 및 에러 화면 처리
-                withContext(Dispatchers.Main) {
-                    if (response.isSuccessful) {
-                        val body = response.body()
-                        val paths = body?.result?.pathList
-                        if (!paths.isNullOrEmpty()) {
-                            routeList = paths
+                if (response.isSuccessful) {
+                    val body = response.body()
+                    val paths = body?.result?.pathList
+
+                    if (!paths.isNullOrEmpty()) {
+                        val isStationOrTerminal = destName.endsWith("역") || destName.endsWith("터미널")
+                        val exactPaths = if (isStationOrTerminal) {
+                            val keyword = destName.replace("역", "").replace("터미널", "").trim()
+                            paths.filter { path ->
+                                val lastTransit = path.subPathList.findLast { it.trafficType != 3 }
+                                val endName = lastTransit?.endName ?: ""
+                                endName.contains(keyword)
+                            }
                         } else {
-                            errorMessage = "해당 목적지로 가는 대중교통 경로가 없습니다."
+                            paths
+                        }
+
+                        if (exactPaths.isNotEmpty()) {
+                            val finalRouteList = mutableListOf<com.example.plaps.data.PathItem>()
+
+                            val isLongDistance = exactPaths.any { path ->
+                                path.subPathList.any { sub -> sub.trafficType in listOf(4, 5, 6) }
+                            }
+
+                            val pathLimit = if (isLongDistance) 5 else 10
+                            val topPaths = exactPaths.take(pathLimit)
+
+                            for (path in topPaths) {
+                                val trunkSubPaths = path.subPathList.filter { it.trafficType in listOf(4, 5, 6) }
+
+                                if (trunkSubPaths.isNotEmpty()) {
+                                    val firstTrunk = trunkSubPaths.first()
+                                    val lastTrunk = trunkSubPaths.last()
+
+                                    val stationBX = firstTrunk.startX?.toString()
+                                    val stationBY = firstTrunk.startY?.toString()
+                                    val stationCX = lastTrunk.endX?.toString()
+                                    val stationCY = lastTrunk.endY?.toString()
+
+                                    if (stationBX != null && stationBY != null && stationCX != null && stationCY != null) {
+                                        val firstMileDef = async { RetrofitClient.odsayService.getTransitPath(myApiKey, startX, startY, stationBX, stationBY) }
+                                        val lastMileDef = async { RetrofitClient.odsayService.getTransitPath(myApiKey, stationCX, stationCY, endX, endY) }
+
+                                        val firstResp = try { firstMileDef.await() } catch (e: Exception) { null }
+                                        val lastResp = try { lastMileDef.await() } catch (e: Exception) { null }
+
+                                        val firstBest = firstResp?.body()?.result?.pathList?.firstOrNull()
+                                        val lastBest = lastResp?.body()?.result?.pathList?.firstOrNull()
+
+                                        val mergedTotalTime = (firstBest?.info?.totalTime ?: 0) + path.info.totalTime + (lastBest?.info?.totalTime ?: 0)
+                                        val mergedPayment = (firstBest?.info?.payment ?: 0) + path.info.payment + (lastBest?.info?.payment ?: 0)
+
+                                        val mapObjs = listOfNotNull(firstBest?.info?.mapObj, lastBest?.info?.mapObj).filter { it.isNotBlank() }
+                                        val mergedMapObj = if (mapObjs.isNotEmpty()) mapObjs.joinToString("@") else null
+
+                                        val mergedSubPaths = mutableListOf<com.example.plaps.data.SubPathItem>()
+                                        if (firstBest != null) mergedSubPaths.addAll(firstBest.subPathList)
+                                        mergedSubPaths.addAll(trunkSubPaths)
+                                        if (lastBest != null) mergedSubPaths.addAll(lastBest.subPathList)
+
+                                        val mergedInfo = path.info.copy(totalTime = mergedTotalTime, payment = mergedPayment, mapObj = mergedMapObj)
+                                        finalRouteList.add(path.copy(info = mergedInfo, subPathList = mergedSubPaths))
+                                    } else {
+                                        finalRouteList.add(path)
+                                    }
+                                } else {
+                                    finalRouteList.add(path)
+                                }
+                            }
+
+                            withContext(Dispatchers.Main) {
+                                routeList = finalRouteList
+                                isLoading = false
+                            }
+
+                        } else {
+                            withContext(Dispatchers.Main) {
+                                errorMessage = "목적지까지 한 번에 가는 정확한 경로를 찾을 수 없습니다."
+                                isLoading = false
+                            }
                         }
                     } else {
-                        errorMessage = "서버 통신 실패 (코드: ${response.code()})"
+                        withContext(Dispatchers.Main) {
+                            errorMessage = "해당 목적지로 가는 대중교통 경로가 없습니다."
+                            isLoading = false
+                        }
                     }
-                    isLoading = false
+                } else {
+                    withContext(Dispatchers.Main) {
+                        errorMessage = "서버 통신 실패 (코드: ${response.code()})"
+                        isLoading = false
+                    }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -114,7 +186,6 @@ fun TransportRouteScreen(context: Context, destLat: Double, destLon: Double, des
             }
         }
     }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -143,19 +214,16 @@ fun TransportRouteScreen(context: Context, destLat: Double, destLon: Double, des
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     items(routeList) { path ->
-                        // 버튼 눌렀을 때의 동작
-                        RouteCard(path = path, onNavigateClick = { mapObj ->
-                            if (mapObj != null) {
-                                // TransPathActivity로 지도 데이터 intent로 들고 가기
-                                val intent = Intent(context, TransPathActivity::class.java).apply {
-                                    putExtra("MAP_OBJ", mapObj)
-                                    putExtra("DEST_LAT", destLat)
-                                    putExtra("DEST_LON", destLon)
-                                }
-                                context.startActivity(intent)
-                            } else {
-                                Toast.makeText(context, "경로 데이터가 없어 지도를 띄울 수 없습니다.", Toast.LENGTH_SHORT).show()
+                        RouteCard(path = path, onNavigateClick = { pathObj ->
+                            val gson = Gson()
+                            val pathJson = gson.toJson(pathObj)
+
+                            val intent = Intent(context, TransPathActivity::class.java).apply {
+                                putExtra("PATH_JSON", pathJson)
+                                putExtra("DEST_LAT", destLat)
+                                putExtra("DEST_LON", destLon)
                             }
+                            context.startActivity(intent)
                         })
                     }
                 }
@@ -163,8 +231,9 @@ fun TransportRouteScreen(context: Context, destLat: Double, destLon: Double, des
         }
     }
 }
+
 @Composable
-fun RouteCard(path: com.example.plaps.data.PathItem, onNavigateClick: (String?) -> Unit) {
+fun RouteCard(path: com.example.plaps.data.PathItem, onNavigateClick: (com.example.plaps.data.PathItem) -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -172,7 +241,9 @@ fun RouteCard(path: com.example.plaps.data.PathItem, onNavigateClick: (String?) 
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // 1. 총 소요 시간과 요금
+
+            val hasTrunkRoute = path.subPathList.any { it.trafficType in listOf(4, 5, 6) }
+
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = "${path.info.totalTime}분",
@@ -181,16 +252,26 @@ fun RouteCard(path: com.example.plaps.data.PathItem, onNavigateClick: (String?) 
                     color = Color.Black
                 )
                 Spacer(modifier = Modifier.width(8.dp))
+
                 Text(
-                    text = "${path.info.payment}원",
+                    text = if (hasTrunkRoute) "${path.info.payment}원 + α" else "${path.info.payment}원",
                     fontSize = 14.sp,
                     color = Color.Gray
                 )
+
+                if (hasTrunkRoute) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "(광역수단 요금 제외)",
+                        fontSize = 11.sp,
+                        color = Color.Red,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 2. 타임라인 바
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -207,6 +288,8 @@ fun RouteCard(path: com.example.plaps.data.PathItem, onNavigateClick: (String?) 
                         val color = when (sub.trafficType) {
                             1 -> Color(0xFF2B50A1)
                             2 -> Color(0xFF4CAF50)
+                            4 -> Color(0xFFE74C3C)
+                            5, 6 -> Color(0xFF8E44AD)
                             else -> Color.Transparent
                         }
 
@@ -217,7 +300,6 @@ fun RouteCard(path: com.example.plaps.data.PathItem, onNavigateClick: (String?) 
                                 .background(color),
                             contentAlignment = Alignment.Center
                         ) {
-                            // 0분일 때는 빈 칸만 남기고 글씨는 숨기기
                             if (sub.sectionTime > 0) {
                                 Text(
                                     text = "${sub.sectionTime}분",
@@ -234,18 +316,32 @@ fun RouteCard(path: com.example.plaps.data.PathItem, onNavigateClick: (String?) 
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 3. 상세 환승 정보
             path.subPathList.forEach { sub ->
-                if (sub.trafficType == 1 || sub.trafficType == 2) {
+                if (sub.trafficType in listOf(1, 2, 4, 5, 6)) {
                     val isSubway = sub.trafficType == 1
+                    val isBus = sub.trafficType == 2
+                    val isTrain = sub.trafficType == 4
 
-                    val transportName = if (isSubway) {
-                        sub.laneList?.getOrNull(0)?.name ?: "지하철"
-                    } else {
-                        sub.laneList?.getOrNull(0)?.busNo?.let { "$it 번 버스" } ?: "버스"
+                    val transportName = when {
+                        isSubway -> sub.laneList?.getOrNull(0)?.name ?: "지하철"
+                        isBus -> sub.laneList?.getOrNull(0)?.busNo?.let { "$it 번 버스" } ?: "버스"
+                        isTrain -> sub.laneList?.getOrNull(0)?.name ?: "기차/KTX"
+                        else -> sub.laneList?.getOrNull(0)?.name ?: "시외/고속버스"
                     }
 
-                    val transportColor = if (isSubway) Color(0xFF2B50A1) else Color(0xFF4CAF50)
+                    val transportColor = when {
+                        isSubway -> Color(0xFF2B50A1)
+                        isBus -> Color(0xFF4CAF50)
+                        isTrain -> Color(0xFFE74C3C)
+                        else -> Color(0xFF8E44AD)
+                    }
+
+                    val iconText = when {
+                        isSubway -> "지"
+                        isBus -> "버"
+                        isTrain -> "기"
+                        else -> "시"
+                    }
 
                     Row(
                         modifier = Modifier
@@ -261,7 +357,7 @@ fun RouteCard(path: com.example.plaps.data.PathItem, onNavigateClick: (String?) 
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = if (isSubway) "지" else "버",
+                                text = iconText,
                                 color = Color.White,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
@@ -276,12 +372,34 @@ fun RouteCard(path: com.example.plaps.data.PathItem, onNavigateClick: (String?) 
                                 fontWeight = FontWeight.Bold,
                                 color = Color.Black
                             )
-                            Text(
-                                text = "[$transportName] 이동 (${sub.sectionTime}분)",
-                                fontSize = 13.sp,
-                                color = transportColor,
-                                fontWeight = FontWeight.Medium
-                            )
+
+                            // ~역 방면 문구
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "[$transportName] 이동 (${sub.sectionTime}분)",
+                                    fontSize = 13.sp,
+                                    color = transportColor,
+                                    fontWeight = FontWeight.Medium
+                                )
+
+                                val nextStation = sub.passStopList?.stations?.getOrNull(1)?.stationName
+                                val directionText = when {
+                                    !nextStation.isNullOrBlank() -> "($nextStation 방면)"
+                                    !sub.way.isNullOrBlank() -> "(${sub.way} 방면)"
+                                    else -> null
+                                }
+
+                                if (directionText != null) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = directionText,
+                                        fontSize = 12.sp,
+                                        color = Color(0xFFE74C3C),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
                             Text(
                                 text = "${sub.endName ?: "도착지"} 하차",
                                 fontSize = 14.sp,
@@ -292,10 +410,9 @@ fun RouteCard(path: com.example.plaps.data.PathItem, onNavigateClick: (String?) 
                 }
             }
 
-            // 4. 안내시작 버튼
             Spacer(modifier = Modifier.height(16.dp))
             Button(
-                onClick = { onNavigateClick(path.info.mapObj) },
+                onClick = { onNavigateClick(path) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
