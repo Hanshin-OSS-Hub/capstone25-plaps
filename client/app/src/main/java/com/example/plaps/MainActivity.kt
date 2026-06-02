@@ -20,15 +20,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import com.example.plaps.data.EventRepository
 import com.example.plaps.ui.theme.PlapsTheme
 import com.example.plaps.ui.theme.ThemeViewModel
 import com.kakao.sdk.common.util.Utility
 import com.navercorp.nid.NaverIdLoginSDK
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    // 🎯 [업적 버그 해결] Hilt를 통해 데이터 초기화를 위한 레포지토리 주입
+    @Inject
+    lateinit var eventRepository: EventRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -40,16 +49,25 @@ class MainActivity : ComponentActivity() {
             clientName = "PLAPS"
         )
 
+        // 앱이 처음 켜질 때 백그라운드에서 4개 기본 업적을 DB에 자동으로 넣어줌
+        lifecycleScope.launch {
+            try {
+                eventRepository.initDefaultAchievements()
+                Log.d("MainActivity", "기본 업적 데이터 생성 완료")
+            } catch (e: Exception) {
+                Log.e("MainActivity", "업적 데이터 초기화 실패", e)
+            }
+        }
+
         enableEdgeToEdge()
         setContent {
             val themeViewModel: ThemeViewModel = hiltViewModel()
             val isDarkMode by themeViewModel.isDarkMode.collectAsStateWithLifecycle()
 
-            // 🌟 로그인 상태 관리를 위한 AuthViewModel 호출
+            // 로그인 상태 관리를 위한 AuthViewModel 호출
             val authViewModel: AuthViewModel = hiltViewModel()
 
             PlapsTheme(darkTheme = isDarkMode) {
-                // AuthViewModel을 Entry로 넘겨줍니다.
                 PlapsAppEntry(authViewModel)
             }
         }
@@ -63,8 +81,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun PlapsAppEntry(authViewModel: AuthViewModel) {
     var isLoading by remember { mutableStateOf(true) }
-
-    // 🌟 ViewModel에서 로그인 상태 구독 (true면 로그인됨, false면 안 됨)
     val isLoggedIn by authViewModel.isLoggedIn.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
@@ -76,13 +92,9 @@ fun PlapsAppEntry(authViewModel: AuthViewModel) {
         if (loading) {
             SplashScreen()
         } else {
-            // 🌟 로딩이 끝나면 로그인 상태에 따라 화면 분기!
             if (isLoggedIn) {
-                // 로그인 성공 시 PLAPS 메인 화면으로
-                // MainAppScreen 안에서 마이페이지로 갈 때도 authViewModel을 넘겨주면 좋습니다.
                 MainAppScreen()
             } else {
-                // 로그인 안 되어 있으면 로그인 화면으로
                 LoginScreen(authViewModel = authViewModel)
             }
         }
