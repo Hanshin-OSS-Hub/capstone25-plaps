@@ -4,7 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    
+
     // KSP 플러그인 : Room 컴파일러용
     id("com.google.devtools.ksp") version "2.0.21-1.0.28"
     id("com.google.dagger.hilt.android")
@@ -21,6 +21,9 @@ android {
     }
 
     defaultConfig {
+
+        manifestPlaceholders["kakaoAppKey"] = localProperties.getProperty("KAKAO_NATIVE_APP_KEY").toString()
+
         applicationId = "com.example.plaps"
         minSdk = 26
         targetSdk = 36
@@ -34,12 +37,12 @@ android {
             abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
         }
 
-        // local.properties에서 REST API 키를 읽어와 BuildConfig에 추가
-        buildConfigField("String", "KAKAO_REST_API_KEY", "\"${localProperties.getProperty("KAKAO_REST_API_KEY")}\"")
-        buildConfigField("String", "KAKAO_NATIVE_APP_KEY", "\"${localProperties.getProperty("KAKAO_NATIVE_APP_KEY")}\"")
-        buildConfigField("String", "ODSAY_API_KEY", "\"${localProperties.getProperty("ODSAY_API_KEY")}\"")
-        buildConfigField("String", "NAVER_CLIENT_ID", "\"${localProperties.getProperty("NAVER_CLIENT_ID")}\"")
-        buildConfigField("String", "NAVER_CLIENT_SECRET", "\"${localProperties.getProperty("NAVER_CLIENT_SECRET")}\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${localProperties.getProperty("GOOGLE_WEB_CLIENT_ID").toString()}\"")
+        buildConfigField("String", "KAKAO_REST_API_KEY", "\"${localProperties.getProperty("KAKAO_REST_API_KEY").toString()}\"")
+        buildConfigField("String", "KAKAO_NATIVE_APP_KEY", "\"${localProperties.getProperty("KAKAO_NATIVE_APP_KEY").toString()}\"")
+        buildConfigField("String", "ODSAY_API_KEY", "\"${localProperties.getProperty("ODSAY_API_KEY").toString()}\"")
+        buildConfigField("String", "NAVER_CLIENT_ID", "\"${localProperties.getProperty("NAVER_CLIENT_ID").toString()}\"")
+        buildConfigField("String", "NAVER_CLIENT_SECRET", "\"${localProperties.getProperty("NAVER_CLIENT_SECRET").toString()}\"")
     }
 
     buildTypes {
@@ -62,27 +65,36 @@ android {
     buildFeatures {
         compose = true
         viewBinding = true
-        buildConfig = true
+        buildConfig = true // ✨ BuildConfig 자동 생성을 활성화하는 스위치!
     }
 }
 
+configurations.all {
+    resolutionStrategy {
+        force("com.google.code.gson:gson:2.10.1")
+    }
+}
 
 dependencies {
+    // 구글 로그인 필수 의존성
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
+
     // 프로필 이미지 로딩
     implementation("io.coil-kt:coil-compose:2.6.0")
     // 네이버 로그인 기능
     implementation("com.navercorp.nid:oauth:5.9.1")
     implementation("androidx.datastore:datastore-preferences:1.0.0")
-    // ✨ [Hilt 라이브러리 추가] ✨
+
+    // ✨ [Hilt 라이브러리] ✨
     implementation("com.google.dagger:hilt-android:2.51.1")
-    ksp("com.google.dagger:hilt-compiler:2.51.1") // KSP 사용 시
-    implementation("androidx.hilt:hilt-navigation-compose:1.2.0") // Compose 연동용
-    
+    ksp("com.google.dagger:hilt-compiler:2.51.1")
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+
     // 카카오 내비 의존성
     implementation("com.kakaomobility.knsdk:knsdk_ui:1.12.8")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.appcompat:appcompat:1.6.1")
-    
+
     // API 요청용 의존성
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
@@ -99,7 +111,7 @@ dependencies {
     // 아이콘 확장 라이브러리
     implementation("androidx.compose.material:material-icons-extended")
 
-    // Room databse
+    // Room database
     val room_version = "2.6.1"
     implementation("androidx.room:room-runtime:$room_version")
     implementation("androidx.room:room-ktx:$room_version")
