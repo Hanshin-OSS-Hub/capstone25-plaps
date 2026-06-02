@@ -13,7 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -97,11 +98,11 @@ fun LoginScreen(authViewModel: AuthViewModel) {
         // 2. 구글 로그인 버튼
         Box(
             modifier = Modifier
-                .fillMaxWidth(0.9f)  // 구글 전용 슬림 밸런스를 위해 가로 너비 살짝 조절
-                .height(40.dp)       // 📐 가이드라인: Android 기준 높이 40.dp 고정
+                .fillMaxWidth(0.9f)  // 구글 전용 슬림 밸런스 유지
+                .height(40.dp)       // 📐 가이드라인: 높이 40.dp 고정
                 .background(
                     color = googleLightGrayColor,
-                    shape = RoundedCornerShape(20.dp) // 📐 가이드라인: 완벽히 둥근 알약(캡슐) 모양
+                    shape = RoundedCornerShape(20.dp) // 📐 가이드라인: 완벽한 알약 모양
                 )
                 .clickable {
                     googleSignInClient.signOut().addOnCompleteListener {
@@ -112,7 +113,7 @@ fun LoginScreen(authViewModel: AuthViewModel) {
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(start = 12.dp, end = 12.dp), // 📐 가이드라인: 좌우 패딩 12.dp
+                    .padding(horizontal = 12.dp), // 📐 가이드라인: 좌우 패딩 12.dp
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 구글 공식 로고 이미지
@@ -122,24 +123,34 @@ fun LoginScreen(authViewModel: AuthViewModel) {
                     modifier = Modifier.size(20.dp) // 📐 가이드라인: 로고 크기 20.dp 고정
                 )
 
-                Spacer(modifier = Modifier.width(10.dp)) // 📐 가이드라인: 로고와 텍스트 간격 10.dp
+                var googleFontSize by remember { mutableStateOf(14.sp) }
 
-                // 가이드라인 텍스트 중앙 배치를 위한 보정 컨테이너
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(end = 20.dp), // 좌측 로고 크기만큼 우측 여백을 주어 글자를 정확히 중앙 정렬
+                        .padding(horizontal = 4.dp), // 좌우 여백을 살짝 줄여 공간 확보
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Google 계정으로 로그인", // ⭕ 구글 공식 한글 권장 문구 적용
+                        text = "Google 계정으로 로그인",
+                        maxLines = 1,
+                        softWrap = false,
+                        onTextLayout = { textLayoutResult ->
+                            if (textLayoutResult.didOverflowWidth) {
+                                if (googleFontSize > 11.sp) {
+                                    googleFontSize = (googleFontSize.value - 1f).sp
+                                }
+                            }
+                        },
                         style = TextStyle(
-                            fontSize = 14.sp,            // 📐 가이드라인: 14sp
-                            fontWeight = FontWeight.Medium, // 📐 가이드라인: Roboto Medium 대용
-                            color = Color(0xFF1F1F1F)    // 📐 가이드라인: 글자 색상 #1F1F1F
+                            fontSize = googleFontSize,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF1F1F1F)
                         )
                     )
                 }
+
+                Spacer(modifier = Modifier.size(20.dp))
             }
         }
 
