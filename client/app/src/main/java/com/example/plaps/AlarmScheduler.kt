@@ -11,7 +11,6 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 class AlarmScheduler(private val context: Context) {
-    // 🎯 빨간 줄 완벽 해결! 정석대로 ALARM_SERVICE만 깔끔하게 낚아챕니다.
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     @SuppressLint("ScheduleExactAlarm")
@@ -31,7 +30,6 @@ class AlarmScheduler(private val context: Context) {
             return
         }
 
-        // 🎯 [규격 맞추기] 등록할 때 사용하는 인텐트 규격
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             putExtra("title", event.title)
             putExtra("message", "${event.startTime}에 시작하는 일정이 있습니다!")
@@ -53,7 +51,6 @@ class AlarmScheduler(private val context: Context) {
 
     // 일정을 취소하거나 삭제했을 때 알람을 해제해 주는 함수
     fun cancel(event: Event) {
-        // 🎯 [버그 해결 핵심] 등록할 때와 100% 일치하는 인텐트를 만들어야 OS가 매칭 성공해서 취소해 줍니다!
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             putExtra("title", event.title)
             putExtra("message", "${event.startTime}에 시작하는 일정이 있습니다!")

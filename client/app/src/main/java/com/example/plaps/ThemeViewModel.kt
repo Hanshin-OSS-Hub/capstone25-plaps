@@ -23,7 +23,6 @@ private val Context.dataStore by preferencesDataStore(name = "settings")
 @HiltViewModel
 class ThemeViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    // 🎯 [추가] 예약된 일정들을 긁어오기 위해 레포지토리 주입
     private val eventRepository: EventRepository
 ) : ViewModel() {
 
@@ -46,7 +45,6 @@ class ThemeViewModel @Inject constructor(
         }
     }
 
-    // 🎯 [수정] 알림을 끌 때 기존 예약 알람을 모조리 찾아가서 폭파시킵니다.
     fun toggleNotification(isEnabled: Boolean) {
         viewModelScope.launch {
             // 1. 설정 저장
@@ -54,7 +52,6 @@ class ThemeViewModel @Inject constructor(
             val prefs = context.getSharedPreferences("plaps_settings", Context.MODE_PRIVATE)
             prefs.edit().putBoolean("notification_enabled", isEnabled).apply()
 
-            // 2. ❌ 알림을 끈 경우, 기존에 예약되어 있던 모든 일정의 알람을 시스템에서 삭제!
             if (!isEnabled) {
                 try {
                     // 전체 일정을 Flow에서 1회성 리스트로 단발 수신 후 cancel 연타

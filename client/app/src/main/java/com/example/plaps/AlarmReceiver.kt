@@ -11,11 +11,11 @@ import androidx.core.app.NotificationCompat
 
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        // 🎯 [최종 차단 마스터 키] 알람이 정시에 깨어났을 때, 마이페이지 알림 스위치 상태를 즉시 확인!
+        // 알람이 정시에 깨어났을 때, 마이페이지 알림 스위치 상태를 즉시 확인!
         val prefs = context.getSharedPreferences("plaps_settings", Context.MODE_PRIVATE)
         val isNotificationEnabled = prefs.getBoolean("notification_enabled", true)
 
-        // ❌ 유저가 마이페이지에서 설정을 꺼둔 상태라면, 아래의 노티 발송 로직을 타지 않고 즉시 폭파(종료)!
+        // 유저가 마이페이지에서 설정을 꺼둔 상태라면, 아래의 노티 발송 로직을 타지 않고 즉시 폭파(종료)!
         if (!isNotificationEnabled) {
             return
         }
