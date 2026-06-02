@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,6 +40,8 @@ fun MyPageScreen(
     authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val isDarkMode by themeViewModel.isDarkMode.collectAsStateWithLifecycle()
+    // 🎯 [알림 연동] ViewModel에서 현재 알림 ON/OFF 설정 상태 구독
+    val isNotificationEnabled by themeViewModel.isNotificationEnabled.collectAsStateWithLifecycle()
 
     val userEmail by authViewModel.userEmail.collectAsStateWithLifecycle()
     val nickname by authViewModel.nickname.collectAsStateWithLifecycle()
@@ -47,6 +50,10 @@ fun MyPageScreen(
     val completedEventsCount = events.count { it.isCompleted }
 
     var showNicknameDialog by remember { mutableStateOf(false) }
+
+    // 🎯 [알림 연동 포인트 1] 알람 취소/재등록을 제어할 Context와 스케줄러 인스턴스 확보
+    val context = LocalContext.current
+    val alarmScheduler = remember { AlarmScheduler(context) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
@@ -93,9 +100,28 @@ fun MyPageScreen(
         }
 
         item {
+            // 🎯 [알림 연동 포인트 2] 스위치 토글 시 시스템 예약 연동 제어 완전 수정
             SettingsSection(
                 isDarkMode = isDarkMode,
+                isNotificationEnabled = isNotificationEnabled,
                 onDarkModeToggle = { themeViewModel.toggleDarkMode(it) },
+                onNotificationToggle = { enabled ->
+                    // 1. 우선 뷰모델 상태를 비동기로 변경
+                    themeViewModel.toggleNotification(enabled)
+
+                    // 2. 알림을 끈 경우(OFF) ➡️ 이전에 켜둘 때 생성해서 예약된 시스템 알람들을 0번 ID 포함 통째로 취소!
+                    if (!enabled) {
+                        events.forEach { event ->
+                            alarmScheduler.cancel(event)
+                        }
+                    }
+                    // 3. 알림을 다시 켠 경우(ON) ➡️ 뷰모델 저장 시점 무시하고 force = true 옵션으로 강제 밀어넣기 재등록!
+                    else {
+                        events.forEach { event ->
+                            alarmScheduler.schedule(event, force = true) // 🎯 force = true 인자값 주입 성공!
+                        }
+                    }
+                },
                 onLogout = { authViewModel.logout() }
             )
         }
@@ -205,9 +231,9 @@ fun ProfileHeader(
                     Icon(Icons.Default.Edit, contentDescription = "수정", tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
                 }
 
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(2.2.dp))
                 Text(
-                    text = "계정: ${userEmail ?: "불러오는 중..."}", // 유저 확인용 텍스트 명확화
+                    text = "계정: ${userEmail ?: "불러오는 중..."}",
                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                     fontSize = 14.sp
                 )
@@ -312,7 +338,13 @@ fun AchievementItem(achievement: Achievement) {
 }
 
 @Composable
-fun SettingsSection(isDarkMode: Boolean, onDarkModeToggle: (Boolean) -> Unit, onLogout: () -> Unit) {
+fun SettingsSection(
+    isDarkMode: Boolean,
+    isNotificationEnabled: Boolean,
+    onDarkModeToggle: (Boolean) -> Unit,
+    onNotificationToggle: (Boolean) -> Unit,
+    onLogout: () -> Unit
+) {
     Column(modifier = Modifier.padding(16.dp)) {
         Text("설정", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.padding(bottom = 8.dp))
 
@@ -322,7 +354,14 @@ fun SettingsSection(isDarkMode: Boolean, onDarkModeToggle: (Boolean) -> Unit, on
             shape = RoundedCornerShape(12.dp)
         ) {
             Column {
-                SettingsSwitchItem("알림", "일정 알림 받기", Icons.Default.NotificationsNone, Color(0xFF2196F3), checked = true, onCheckedChange = null)
+                SettingsSwitchItem(
+                    title = "알림",
+                    subtitle = "일정 알림 받기",
+                    icon = Icons.Default.NotificationsNone,
+                    iconTint = Color(0xFF2196F3),
+                    checked = isNotificationEnabled,
+                    onCheckedChange = onNotificationToggle
+                )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
 
                 SettingsSwitchItem("다크모드", "어두운 테마 사용", Icons.Default.DarkMode, Color(0xFF757575), checked = isDarkMode, onCheckedChange = onDarkModeToggle)
@@ -348,9 +387,6 @@ fun SettingsSwitchItem(
     checked: Boolean,
     onCheckedChange: ((Boolean) -> Unit)?
 ) {
-    var localChecked by remember { mutableStateOf(checked) }
-    val currentChecked = if (onCheckedChange != null) checked else localChecked
-
     Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(iconTint.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = null, tint = iconTint)
@@ -361,14 +397,8 @@ fun SettingsSwitchItem(
             Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Switch(
-            checked = currentChecked,
-            onCheckedChange = {
-                if (onCheckedChange != null) {
-                    onCheckedChange(it)
-                } else {
-                    localChecked = it
-                }
-            },
+            checked = checked,
+            onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = MaterialTheme.colorScheme.surface,
                 checkedTrackColor = MaterialTheme.colorScheme.primary,

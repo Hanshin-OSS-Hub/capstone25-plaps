@@ -164,6 +164,9 @@ fun AddOrEditEventSheet(
     val isEditMode = existingEvent != null
     val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
 
+    // 🎯 [추가된 부분 1] 알람 스케줄러 객체 생성
+    val alarmScheduler = remember { AlarmScheduler(context) }
+
     val locationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -223,13 +226,19 @@ fun AddOrEditEventSheet(
                 })
             }
             .padding(horizontal = 20.dp, vertical = 16.dp)
-        // 🌟 바깥쪽 Column에서 imePadding() 삭제! -> 버튼이 위로 밀려 올라오지 않습니다.
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(if (isEditMode) "일정 수정" else "새 일정 추가", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             Row {
                 if (isEditMode) {
-                    IconButton(onClick = { onDelete(existingEvent!!) }, modifier = Modifier.size(24.dp)) {
+                    IconButton(
+                        onClick = {
+                            // 🎯 [추가된 부분 2] 일정 삭제 시 예약된 알람도 함께 취소
+                            alarmScheduler.cancel(existingEvent!!)
+                            onDelete(existingEvent)
+                        },
+                        modifier = Modifier.size(24.dp)
+                    ) {
                         Icon(Icons.Default.Delete, contentDescription = "삭제", tint = MaterialTheme.colorScheme.error)
                     }
                     Spacer(modifier = Modifier.width(12.dp))
@@ -255,7 +264,6 @@ fun AddOrEditEventSheet(
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 colors = TextFieldDefaults.colors(focusedContainerColor = inputBackgroundColor, unfocusedContainerColor = inputBackgroundColor, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, focusedTextColor = MaterialTheme.colorScheme.onSurface, unfocusedTextColor = MaterialTheme.colorScheme.onSurface),
                 shape = RoundedCornerShape(8.dp), singleLine = true, textStyle = TextStyle(fontSize = 14.sp),
-                // 🌟 제목 입력칸 엔터키를 '완료(Done)'로 변경
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(
                     onDone = {
@@ -349,14 +357,12 @@ fun AddOrEditEventSheet(
             }
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 🌟 키보드가 열렸을 때, 스크롤 가능한 영역 맨 밑에 키보드 높이만큼의 여유 공간을 줍니다.
-            // 이렇게 하면 가려진 입력칸도 스크롤해서 올릴 수 있습니다!
             Spacer(modifier = Modifier.imePadding())
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 하단 버튼 영역 (키보드가 올라와도 강제로 위로 밀리지 않음)
+        // 하단 버튼 영역
         Column {
             Button(
                 onClick = {
@@ -365,7 +371,28 @@ fun AddOrEditEventSheet(
                     } else {
                         keyboardController?.hide()
                         focusManager.clearFocus()
-                        onSave(Event(id = existingEvent?.id ?: 0, date = selectedDate, title = title, startTime = startTime, endTime = endTime, location = location, notes = description, colorIndex = selectedColorIndex, latitude = latState, longitude = lngState))
+
+                        // 🎯 [추가된 부분 3] Event 객체를 먼저 만들고, 알람 예약 후 저장 처리
+                        val eventToSave = Event(
+                            id = existingEvent?.id ?: 0,
+                            userId = "", // 빈 문자열 할당
+                            date = selectedDate,
+                            title = title,
+                            startTime = startTime,
+                            endTime = endTime,
+                            location = location,
+                            notes = description,
+                            colorIndex = selectedColorIndex,
+                            latitude = latState,
+                            longitude = lngState
+                        )
+
+                        // 알람 스케줄러 등록
+                        alarmScheduler.schedule(eventToSave)
+
+                        // DB 저장
+                        onSave(eventToSave)
+
                         title = ""; location = ""; latState = null; lngState = null; description = ""
                         selectedColorIndex = 0; startTime = LocalTime.of(9, 0); endTime = LocalTime.of(10, 0)
                     }
