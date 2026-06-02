@@ -8,7 +8,9 @@ import java.time.LocalTime
 // [2] Entity: DB 테이블 구조 정의
 @Entity(tableName = "events")
 data class Event(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
+    val userId: String, // 서버의 user_id와 매핑
     val date: LocalDate,
     val title: String,
     val startTime: LocalTime,
